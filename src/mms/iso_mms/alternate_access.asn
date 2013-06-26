@@ -1,0 +1,34 @@
+AlternateAccess ::= SEQUENCE OF CHOICE {
+	unnamed AlternateAccessSelection,
+	named	[5] IMPLICIT SEQUENCE {
+		componentName [0] IMPLICIT Identifier,
+		access	AlternateAccessSelection
+	}
+}
+
+AlternateAccessSelection ::= CHOICE {
+	selectAlternateAccess [0] IMPLICIT SEQUENCE {
+		accessSelection CHOICE {
+			component	[0] IMPLICIT Identifier,
+			index		[1] IMPLICIT Unsigned32,
+			indexRange  [2] IMPLICIT SEQUENCE {
+				lowIndex			[0] IMPLICIT Unsigned32,
+				numberOfElements 	[1] IMPLICIT Unsigned32
+			},
+			allElements [3] IMPLICIT NULL
+		},
+		
+		alternateAccess	AlternateAccess
+	},
+	
+	selectAccess	CHOICE {
+		component	[1] IMPLICIT Identifier,
+		index		[2] IMPLICIT Unsigned32,
+		indexRange  [3] IMPLICIT SEQUENCE {
+				lowIndex			[0] IMPLICIT Unsigned32,
+				numberOfElements 	[1] IMPLICIT Unsigned32
+		},
+		allElements [4] IMPLICIT NULL
+	}
+}
+
