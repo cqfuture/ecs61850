@@ -52,6 +52,9 @@ copyString(char* string)
 char*
 createString(int count, ...)
 {
+	/**
+	  \note the function of the interface should be make sure later
+	 */
 	va_list ap;
 	char* newStr;
 	char* currentPos;

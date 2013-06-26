@@ -26,6 +26,7 @@
 
 #include "byte_stream.h"
 #include "socket.h"
+#include "hal.h"
 
 
 

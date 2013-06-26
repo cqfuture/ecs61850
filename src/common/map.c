@@ -32,7 +32,12 @@ typedef struct sMapEntry {
 static int
 comparePointerKeys(void* key1, void* key2)
 {
-    // modify by sabin
+    /**
+      \noet the purpose of modifying this comment from 
+	        "(unsigned int)key2 - (unsigned int)key1"
+			to "key2 - key1", is enabling the code can
+			compile on vs2008 
+     */
 	return (unsigned int)key2 - (unsigned int)key1;
 }
 

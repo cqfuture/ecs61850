@@ -25,7 +25,7 @@
 #define BYTE_STREAM_H_
 
 #include "libiec61850_platform_includes.h"
-#include "socket.h"
+#include ".\socket\socket.h"
 #include "byte_buffer.h"
 
 typedef struct sByteStream {

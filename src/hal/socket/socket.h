@@ -24,7 +24,7 @@
 #ifndef SOCKET_H_
 #define SOCKET_H_
 
-#include <stdint.h>
+#include "stdint.h"
 
 /*! \addtogroup hal Hardware/OS abstraction layer
    *  Thread and Socket abstraction layer. This functions have to be implemented to

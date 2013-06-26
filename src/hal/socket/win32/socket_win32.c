@@ -28,7 +28,7 @@
 
 #pragma comment (lib, "Ws2_32.lib")
 
-#include "socket.h"
+#include "..\socket.h"
 #include "stack_config.h"
 
 struct tcp_keepalive {
@@ -72,13 +72,13 @@ TcpServerSocket_create(char* address, int port)
 	int ec;
 	WSADATA wsa;
 	SOCKET listen_socket = INVALID_SOCKET;
+	struct sockaddr_in server_addr;
+	int optionReuseAddr = 1;
 
 	if (ec = WSAStartup(MAKEWORD(2,0), &wsa) != 0) {
 		printf("winsock error: code %i\n");
 		return NULL;
 	}
-
-	struct sockaddr_in server_addr;
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	server_addr.sin_port = htons(port);
@@ -92,10 +92,9 @@ TcpServerSocket_create(char* address, int port)
 	if (listen_socket == INVALID_SOCKET) {
 		printf("socket failed with error: %i\n", WSAGetLastError());
 		WSACleanup();
-		return 1;
+		return NULL;
 	}
 
-	int optionReuseAddr = 1;
 	setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&optionReuseAddr, sizeof(int));
 
 	ec = bind(listen_socket, (struct sockaddr*)&server_addr, sizeof(server_addr));
@@ -104,7 +103,7 @@ TcpServerSocket_create(char* address, int port)
 		printf("bind failed with error:%i\n", WSAGetLastError());
 		closesocket(listen_socket);
 		WSACleanup();
-		return 1;
+		return NULL;
 	}
 
 	serverSocket = malloc(sizeof(struct sServerSocket));
@@ -199,29 +198,31 @@ Socket_getPeerAddress(Socket self)
 {
 	struct sockaddr_storage addr;
 	int addrLen = sizeof(addr);
-
-	getpeername(self->fd, &addr, &addrLen);
-
-	char* addrString[INET6_ADDRSTRLEN + 7];
+	char addrString[INET6_ADDRSTRLEN + 7];
 	int addrStringLen = INET6_ADDRSTRLEN + 7;
 	int port;
+	char* clientConnection = NULL; 
+
+	getpeername(self->fd, (struct sockaddr *)&addr, &addrLen);
 
 	if (addr.ss_family == AF_INET)  {
 		struct sockaddr_in* ipv4Addr = (struct sockaddr_in*) &addr;
 		port = ntohs(ipv4Addr->sin_port);
 		ipv4Addr->sin_port = 0;
-		WSAAddressToString(ipv4Addr, sizeof(struct sockaddr_storage), NULL, addrString, &addrStringLen);
+		WSAAddressToStringA((struct sockaddr *)ipv4Addr, sizeof(struct sockaddr_storage), NULL, addrString, &addrStringLen);
 	}
 	else if (addr.ss_family == AF_INET6){
 		struct sockaddr_in6* ipv6Addr = (struct sockaddr_in6*) &addr;
 		port = ntohs(ipv6Addr->sin6_port);
 		ipv6Addr->sin6_port = 0;
-		WSAAddressToString(ipv6Addr, sizeof(struct sockaddr_storage), NULL, addrString, &addrStringLen);
+		WSAAddressToStringA((struct sockaddr *)ipv6Addr, sizeof(struct sockaddr_storage), NULL, addrString, &addrStringLen);
 	}
 	else
+	{
 		return NULL;
+	}
 
-	char* clientConnection = malloc(strlen(addrString) + 8);
+	clientConnection = malloc(strlen(addrString) + 8);
 
 	sprintf(clientConnection, "%s[%i]", addrString, port);
 

@@ -24,7 +24,7 @@
 #ifndef ETHERNET_H_
 #define ETHERNET_H_
 
-#include <stdint.h>
+#include "stdint.h"
 
 /*! \addtogroup hal
    *

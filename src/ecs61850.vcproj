@@ -41,7 +41,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\inc"
+				AdditionalIncludeDirectories=".\hal\ethernet;.\hal\socket;.\hal;..\inc;..\inc\platform\win32;.\common"
 				PreprocessorDefinitions="WIN32;_DEBUG;BUILD_DLL"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -49,6 +49,7 @@
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="4"
+				DisableSpecificWarnings="4996"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -245,6 +246,66 @@
 				RelativePath=".\common\string_utilities.h"
 				>
 			</File>
+		</Filter>
+		<Filter
+			Name="hal"
+			>
+			<File
+				RelativePath=".\hal\byte_stream.c"
+				>
+			</File>
+			<File
+				RelativePath=".\hal\byte_stream.h"
+				>
+			</File>
+			<File
+				RelativePath=".\hal\hal.c"
+				>
+			</File>
+			<File
+				RelativePath=".\hal\hal.h"
+				>
+			</File>
+			<File
+				RelativePath=".\hal\platform_endian.h"
+				>
+			</File>
+			<Filter
+				Name="ethernet"
+				>
+			</Filter>
+			<Filter
+				Name="socket"
+				>
+				<File
+					RelativePath=".\hal\socket\socket.h"
+					>
+				</File>
+				<Filter
+					Name="win32"
+					>
+					<File
+						RelativePath=".\hal\socket\win32\socket_win32.c"
+						>
+					</File>
+				</Filter>
+			</Filter>
+			<Filter
+				Name="thread"
+				>
+				<File
+					RelativePath=".\hal\ethernet\ethernet.h"
+					>
+				</File>
+				<Filter
+					Name="win32"
+					>
+					<File
+						RelativePath=".\hal\ethernet\win32\ethernet_win32.c"
+						>
+					</File>
+				</Filter>
+			</Filter>
 		</Filter>
 		<File
 			RelativePath=".\ReadMe.txt"
