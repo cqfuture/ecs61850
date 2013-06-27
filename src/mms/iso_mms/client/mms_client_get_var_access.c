@@ -58,15 +58,15 @@ createTypeSpecification(TypeSpecification_t* asnTypeSpec) {
 	switch (asnTypeSpec->present) {
 	case TypeSpecification_PR_structure:
 		{
-			typeSpec->type = MMS_STRUCTURE;
+            int elementCount;
+            int i;
+            typeSpec->type = MMS_STRUCTURE;
 
-			int elementCount = asnTypeSpec->choice.structure.components.list.count;
+			elementCount = asnTypeSpec->choice.structure.components.list.count;
 			typeSpec->typeSpec.structure.elementCount = elementCount;
 
 			typeSpec->typeSpec.structure.elements =
 					calloc(elementCount, sizeof(MmsTypeSpecification*));
-
-			int i;
 
 			for (i = 0; i < elementCount; i++) {
 
@@ -84,9 +84,10 @@ createTypeSpecification(TypeSpecification_t* asnTypeSpec) {
 		break;
 	case TypeSpecification_PR_array:
 		{
+            long elementCount;
+
 			typeSpec->type = MMS_ARRAY;
 
-			long elementCount;
 			asn_INTEGER2long(&asnTypeSpec->choice.array.numberOfElements, &elementCount);
 
 			typeSpec->typeSpec.array.elementCount = elementCount;
@@ -161,9 +162,10 @@ mmsClient_parseGetVariableAccessAttributesResponse(ByteBuffer* message, uint32_t
 				ConfirmedServiceResponse_PR_getVariableAccessAttributes)
 		{
 			GetVariableAccessAttributesResponse_t* response;
+            TypeSpecification_t* asnTypeSpec;
 
 			response = &(mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.choice.getVariableAccessAttributes);
-			TypeSpecification_t* asnTypeSpec = &response->typeSpecification;
+			asnTypeSpec = &response->typeSpecification;
 
 			typeSpec = createTypeSpecification(asnTypeSpec);
 		}
@@ -180,11 +182,11 @@ mmsClient_createGetVariableAccessAttributesRequest(
 		ByteBuffer* writeBuffer)
 {
 	MmsPdu_t* mmsPdu = mmsClient_createConfirmedRequestPdu(1);
+    GetVariableAccessAttributesRequest_t* request;
+    asn_enc_rval_t rval;
 
 	mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.present =
 			ConfirmedServiceRequest_PR_getVariableAccessAttributes;
-
-	GetVariableAccessAttributesRequest_t* request;
 
 	request =
 	  &(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.getVariableAccessAttributes);
@@ -197,8 +199,6 @@ mmsClient_createGetVariableAccessAttributesRequest(
 	request->choice.name.choice.domainspecific.domainId.size = strlen(domainId);
 	request->choice.name.choice.domainspecific.itemId.buf = itemId;
 	request->choice.name.choice.domainspecific.itemId.size = strlen(itemId);
-
-	asn_enc_rval_t rval;
 
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 	            mmsClient_write_out, (void*) writeBuffer);

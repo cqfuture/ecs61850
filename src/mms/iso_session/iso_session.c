@@ -107,6 +107,7 @@ parseSessionHeaderParameters(IsoSession* session, ByteBuffer* message, int param
 	int hasSessionRequirement = 0;
 
 	while (offset < (parametersOctets + 2)) {
+        int connectAcceptLen;
 		pgi = message->buffer[offset++];
 		parameterLength = message->buffer[offset++];
 
@@ -118,7 +119,6 @@ parseSessionHeaderParameters(IsoSession* session, ByteBuffer* message, int param
 			break;
 		case 5:		/* Connection/Accept Item */
 			if (DEBUG) printf("iso_session: PGI - Connection/Accept Item\n");
-			int connectAcceptLen;
 
 			connectAcceptLen = parseAcceptParameters(session, message, offset, parameterLength);
 
@@ -260,6 +260,7 @@ IsoSession_createConnectSpdu(IsoSession* self, ByteBuffer* buffer, uint8_t paylo
 	int offset = buffer->size;
 	uint8_t* buf = buffer->buffer;
 	int lengthOffset;
+    int spduLength;
 
 	buf[offset++] = 13; /* CONNECT SPDU */
 	lengthOffset = offset; offset++; /* Skip byte for length - fill it later */
@@ -274,7 +275,7 @@ IsoSession_createConnectSpdu(IsoSession* self, ByteBuffer* buffer, uint8_t paylo
 
 	offset = encodeSessionUserData(self, buf, offset, payloadLength);
 
-	int spduLength = (offset - lengthOffset - 1) + payloadLength;
+	spduLength = (offset - lengthOffset - 1) + payloadLength;
 
 	buf[lengthOffset] = spduLength;
 
@@ -287,6 +288,7 @@ IsoSession_createAcceptSpdu(IsoSession* self, ByteBuffer* buffer, uint8_t payloa
 	int offset = buffer->size;
 	uint8_t* buf = buffer->buffer;
 	int lengthOffset;
+    int spduLength;
 
 	buf[offset++] = 14; /* ACCEPT SPDU */
 	lengthOffset = offset; offset++;
@@ -299,7 +301,7 @@ IsoSession_createAcceptSpdu(IsoSession* self, ByteBuffer* buffer, uint8_t payloa
 
 	offset = encodeSessionUserData(self, buf, offset, payloadLength);
 
-	int spduLength = (offset - lengthOffset - 1) + payloadLength;
+	spduLength = (offset - lengthOffset - 1) + payloadLength;
 
 	buf[lengthOffset] = spduLength;
 

@@ -196,7 +196,7 @@ MmsServer_getDevice(MmsServer self)
     return self->device;
 }
 
-inline void
+void
 MmsServer_setDevice(MmsServer server, MmsDevice* device)
 {
     server->device = device;

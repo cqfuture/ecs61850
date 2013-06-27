@@ -35,9 +35,10 @@ int main(int argc, char** argv) {
 	MmsClientError mmsError;
 
 	MmsIndication indication =
-			MmsConnection_connect(con, &mmsError, "localhost", 102);
+			MmsConnection_connect(con, &mmsError, "192.168.27.152", 102);
 
 	if (indication == MMS_OK) {
+        printf("Connect to server success!\n");
 		// add application code here
 	}
 	else

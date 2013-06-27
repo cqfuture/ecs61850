@@ -27,6 +27,7 @@
 #include "iso_client_connection.h"
 #include "mms_client_internal.h"
 #include "stack_config.h"
+#include "thread.h"
 
 #include <MmsPdu.h>
 
@@ -107,6 +108,7 @@ static void
 mmsIsoCallback(IsoIndication indication, void* parameter, ByteBuffer* payload)
 {
 	MmsConnection self = (MmsConnection) parameter;
+    uint8_t* buf;
 
 	if (DEBUG) printf("mmsIsoCallback called with indication %i\n", indication);
 
@@ -136,7 +138,7 @@ mmsIsoCallback(IsoIndication indication, void* parameter, ByteBuffer* payload)
     }
 
 
-	uint8_t* buf = ByteBuffer_getBuffer(payload);
+	buf = ByteBuffer_getBuffer(payload);
 
 	if (DEBUG) printf("MMS-PDU: %02x\n", buf[0]);
 
@@ -237,6 +239,8 @@ MmsConnection_getError(MmsConnection self) {
 MmsIndication
 MmsConnection_connect(MmsConnection self, MmsClientError* mmsError, char* serverName, int serverPort)
 {
+    ByteBuffer payload;
+
 	self->isoClient = IsoClientConnection_create(mmsIsoCallback, (void*) self);
 
 	if (self->isoParameters == NULL) {
@@ -251,8 +255,6 @@ MmsConnection_connect(MmsConnection self, MmsClientError* mmsError, char* server
 		self->parameters.maxPduSize = MMS_MAXIMUM_PDU_SIZE;
 
 	self->buffer = malloc(self->parameters.maxPduSize);
-
-	ByteBuffer payload;
 
 	ByteBuffer_wrap(&payload, self->buffer, 0, self->parameters.maxPduSize);
 
@@ -539,9 +541,10 @@ MmsConnection_readNamedVariableListValues(MmsConnection self, MmsClientError* mm
 		bool specWithResult)
 {
 	ByteBuffer payload;
+    MmsValue* value;
 	ByteBuffer_wrap(&payload, self->buffer, 0, self->parameters.maxPduSize);
 
-	MmsValue* value = NULL;
+	value = NULL;
 
 	*mmsError = MMS_ERROR_NONE;
 
@@ -581,9 +584,10 @@ MmsConnection_readNamedVariableListValuesAssociationSpecific(
 		bool specWithResult)
 {
 	ByteBuffer payload;
+    MmsValue* value;
 	ByteBuffer_wrap(&payload, self->buffer, 0, self->parameters.maxPduSize);
 
-	MmsValue* value = NULL;
+	value = NULL;
 
 	*mmsError = MMS_ERROR_NONE;
 
@@ -621,11 +625,12 @@ MmsConnection_readNamedVariableListDirectory(MmsConnection self,  MmsClientError
 		char* domainId, char* listName,	bool* deletable)
 {
 	ByteBuffer payload;
+    LinkedList attributes;
 	ByteBuffer_wrap(&payload, self->buffer, 0, self->parameters.maxPduSize);
 
 	*mmsError = MMS_ERROR_NONE;
 
-	LinkedList attributes = NULL;
+	attributes = NULL;
 
 	self->lastInvokeId++;
 
@@ -665,6 +670,7 @@ MmsConnection_defineNamedVariableList(MmsConnection self,  MmsClientError* mmsEr
 		char* domainId, char* listName, LinkedList variableSpecs)
 {
 	ByteBuffer payload;
+    MmsIndication indication;
 	ByteBuffer_wrap(&payload, self->buffer, 0, self->parameters.maxPduSize);
 
 	*mmsError = MMS_ERROR_NONE;
@@ -683,7 +689,7 @@ MmsConnection_defineNamedVariableList(MmsConnection self,  MmsClientError* mmsEr
 	while (self->connectionState == MMS_CON_WAITING)
 		Thread_sleep(1);
 
-	MmsIndication indication = MMS_ERROR;
+	indication = MMS_ERROR;
 
 	if (self->connectionState == MMS_CON_RESPONSE_PENDING) {
 		uint32_t invokeId;
@@ -707,6 +713,7 @@ MmsConnection_defineNamedVariableListAssociationSpecific(MmsConnection self,
 		 MmsClientError* mmsError, char* listName, LinkedList variableSpecs)
 {
 	ByteBuffer payload;
+    MmsIndication indication;
 	ByteBuffer_wrap(&payload, self->buffer, 0, self->parameters.maxPduSize);
 
 	*mmsError = MMS_ERROR_NONE;
@@ -725,7 +732,7 @@ MmsConnection_defineNamedVariableListAssociationSpecific(MmsConnection self,
 	while (self->connectionState == MMS_CON_WAITING)
 		Thread_sleep(1);
 
-	MmsIndication indication = MMS_ERROR;
+	indication = MMS_ERROR;
 
 	if (self->connectionState == MMS_CON_RESPONSE_PENDING) {
 		uint32_t invokeId;
@@ -749,6 +756,7 @@ MmsConnection_deleteNamedVariableList(MmsConnection self,  MmsClientError* mmsEr
 		char* domainId, char* listName)
 {
 	ByteBuffer payload;
+    MmsIndication indication;
 	ByteBuffer_wrap(&payload, self->buffer, 0, self->parameters.maxPduSize);
 
 	*mmsError = MMS_ERROR_NONE;
@@ -766,7 +774,7 @@ MmsConnection_deleteNamedVariableList(MmsConnection self,  MmsClientError* mmsEr
 	while (self->connectionState == MMS_CON_WAITING)
 		Thread_sleep(1);
 
-	MmsIndication indication = MMS_ERROR;
+	indication = MMS_ERROR;
 
 	if (self->connectionState == MMS_CON_RESPONSE_PENDING) {
 		uint32_t invokeId;
@@ -790,6 +798,8 @@ MmsConnection_deleteAssociationSpecificNamedVariableList(MmsConnection self,
 		 MmsClientError* mmsError, char* listName)
 {
 	ByteBuffer payload;
+    MmsIndication indication;
+
 	ByteBuffer_wrap(&payload, self->buffer, 0, self->parameters.maxPduSize);
 
 	*mmsError = MMS_ERROR_NONE;
@@ -808,7 +818,7 @@ MmsConnection_deleteAssociationSpecificNamedVariableList(MmsConnection self,
 	while (self->connectionState == MMS_CON_WAITING)
 		Thread_sleep(1);
 
-	MmsIndication indication = MMS_ERROR;
+	indication = MMS_ERROR;
 
 	if (self->connectionState == MMS_CON_RESPONSE_PENDING) {
 		uint32_t invokeId;
@@ -833,8 +843,10 @@ MmsConnection_getVariableAccessAttributes(MmsConnection self,  MmsClientError* m
 		char* domainId, char* itemId)
 {
 	ByteBuffer payload;
+    MmsTypeSpecification* typeSpec;
+
 	ByteBuffer_wrap(&payload, self->buffer, 0, self->parameters.maxPduSize);
-	MmsTypeSpecification* typeSpec = NULL;
+	typeSpec = NULL;
 
 	*mmsError = MMS_ERROR_NONE;
 

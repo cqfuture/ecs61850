@@ -60,13 +60,6 @@ struct sIsoConnection {
 static void
 handleTcpConnection(IsoConnection self)
 {
-    CotpIndication cotpIndication;
-
-    IsoSessionIndication sIndication;
-
-    IsoPresentationIndication pIndication;
-
-    AcseIndication aIndication;
     AcseConnection acseConnection;
 
     ByteBuffer receiveBuffer;
@@ -85,15 +78,16 @@ handleTcpConnection(IsoConnection self)
 
     AcseConnection_init(&acseConnection);
     AcseConnection_setAuthenticationParameter(&acseConnection,
-            IsoServer_getAuthenticationParameter(self->isoServer));
+        IsoServer_getAuthenticationParameter(self->isoServer));
 
     while (self->msgRcvdHandlerParameter == NULL )
         Thread_sleep(1);
 
     printf("IsoConnection: state = RUNNING. Start to handle connection for client %s\n",
-            self->clientAddress);
+        self->clientAddress);
 
     while (self->state == ISO_CON_STATE_RUNNING) {
+        CotpIndication cotpIndication;
         ByteBuffer_wrap(&receiveBuffer, self->receive_buf, 0, RECEIVE_BUF_SIZE);
         ByteBuffer_wrap(&responseBuffer1, self->send_buf_1, 0, SEND_BUF_SIZE);
         ByteBuffer_wrap(&responseBuffer2, self->send_buf_2, 0, SEND_BUF_SIZE);
@@ -101,142 +95,149 @@ handleTcpConnection(IsoConnection self)
         cotpIndication = CotpConnection_parseIncomingMessage(self->cotpConnection);
 
         switch (cotpIndication) {
-        case CONNECT_INDICATION:
-            if (DEBUG)
-                printf("COTP connection indication\n");
-
-            Semaphore_wait(self->conMutex);
-
-            CotpConnection_sendConnectionResponseMessage(self->cotpConnection);
-
-            Semaphore_post(self->conMutex);
-
-            break;
-        case DATA_INDICATION:
-            if (DEBUG)
-                printf("COTP data indication\n");
-
-            ByteBuffer* cotpPayload = CotpConnection_getPayload(self->cotpConnection);
-
-            sIndication = IsoSession_parseMessage(self->session, cotpPayload);
-
-            ByteBuffer* sessionUserData = IsoSession_getUserData(self->session);
-
-            switch (sIndication) {
-            case SESSION_CONNECT:
+            case CONNECT_INDICATION:
                 if (DEBUG)
-                    printf("iso_connection: session connect indication\n");
+                    printf("COTP connection indication\n");
 
-                pIndication = IsoPresentation_parseConnect(self->presentation, sessionUserData);
+                Semaphore_wait(self->conMutex);
 
-                if (pIndication == PRESENTATION_OK) {
-                    if (DEBUG)
-                        printf("iso_connection: presentation ok\n");
+                CotpConnection_sendConnectionResponseMessage(self->cotpConnection);
 
-                    ByteBuffer* acseBuffer = &(self->presentation->nextPayload);
+                Semaphore_post(self->conMutex);
 
-                    aIndication = AcseConnection_parseMessage(&acseConnection, acseBuffer);
+                break;
+            case DATA_INDICATION:
+            {
+                ByteBuffer* cotpPayload;
+                ByteBuffer* sessionUserData;
+                IsoSessionIndication sIndication;
+                if (DEBUG)
+                    printf("COTP data indication\n");
 
-                    if (aIndication == ACSE_ASSOCIATE) {
+                cotpPayload = CotpConnection_getPayload(self->cotpConnection);
+
+                sIndication = IsoSession_parseMessage(self->session, cotpPayload);
+
+                sessionUserData = IsoSession_getUserData(self->session);
+
+                switch (sIndication) {
+                    IsoPresentationIndication pIndication;
+                    case SESSION_CONNECT:
                         if (DEBUG)
-                            printf("cotp_server: acse associate\n");
+                            printf("iso_connection: session connect indication\n");
 
-                        ByteBuffer mmsRequest;
+                        pIndication = IsoPresentation_parseConnect(self->presentation, sessionUserData);
 
-                        ByteBuffer_wrap(&mmsRequest, acseConnection.userDataBuffer,
-                                acseConnection.userDataBufferSize, acseConnection.userDataBufferSize);
+                        if (pIndication == PRESENTATION_OK) {
+                            ByteBuffer* acseBuffer; 
+                            AcseIndication aIndication;
+                            ByteBuffer mmsRequest;
+                            if (DEBUG)
+                                printf("iso_connection: presentation ok\n");
+
+                            acseBuffer = &(self->presentation->nextPayload);
+
+                            aIndication = AcseConnection_parseMessage(&acseConnection, acseBuffer);
+
+                            if (aIndication == ACSE_ASSOCIATE) {
+                                if (DEBUG)
+                                    printf("cotp_server: acse associate\n");
+
+                            ByteBuffer_wrap(&mmsRequest, acseConnection.userDataBuffer,
+                            acseConnection.userDataBufferSize, acseConnection.userDataBufferSize);
+
+                            Semaphore_wait(self->conMutex);
+
+                            self->msgRcvdHandler(self->msgRcvdHandlerParameter,
+                                &mmsRequest, &responseBuffer1);
+
+                            if (responseBuffer1.size > 0) {
+                                if (DEBUG)
+                                    printf("iso_connection: application payload size: %i\n",
+                                            responseBuffer1.size);
+
+                                AcseConnection_createAssociateResponseMessage(&acseConnection,
+                                ACSE_RESULT_ACCEPT, &responseBuffer2, &responseBuffer1);
+
+                                responseBuffer1.size = 0;
+
+                                IsoPresentation_createCpaMessage(self->presentation, &responseBuffer1,
+                                        &responseBuffer2);
+
+                                responseBuffer2.size = 0;
+
+                                IsoSession_createAcceptSpdu(self->session, &responseBuffer2,
+                                                responseBuffer1.size);
+
+                                ByteBuffer_append(&responseBuffer2, responseBuffer1.buffer,
+                                                responseBuffer1.size);
+
+                                CotpConnection_sendDataMessage(self->cotpConnection, &responseBuffer2);
+                            }
+                            else {
+                                if (DEBUG)
+                                    printf("iso_connection: association error. No response from application!\n");
+                            }
+
+                            Semaphore_post(self->conMutex);
+                        }
+                        else {
+                            if (DEBUG)
+                                printf("iso_connection: acse association failed\n");
+                            self->state = ISO_CON_STATE_STOPPED;
+                        }
+                    }
+                    break;
+                case SESSION_DATA:
+                    if (DEBUG)
+                        printf("iso_connection: session data indication\n");
+
+                    pIndication = IsoPresentation_parseUserData(self->presentation, sessionUserData);
+
+                    if (pIndication == PRESENTATION_ERROR) {
+                        if (DEBUG)
+                            printf("cotp_server: presentation error\n");
+                        self->state = ISO_CON_STATE_STOPPED;
+                        break;
+                    }
+
+                    if (self->presentation->nextContextId == 3) {
+                        ByteBuffer* mmsRequest;
+                        if (DEBUG)
+                            printf("iso_connection: mms message\n");
+
+                        mmsRequest = &(self->presentation->nextPayload);
 
                         Semaphore_wait(self->conMutex);
 
                         self->msgRcvdHandler(self->msgRcvdHandlerParameter,
-                                &mmsRequest, &responseBuffer1);
+                        mmsRequest, &responseBuffer1);
 
-                        if (responseBuffer1.size > 0) {
-                            if (DEBUG)
-                                printf("iso_connection: application payload size: %i\n",
-                                        responseBuffer1.size);
+                        IsoPresentation_createUserData(self->presentation,
+                                    &responseBuffer2, &responseBuffer1);
 
-                            AcseConnection_createAssociateResponseMessage(&acseConnection,
-                            		ACSE_RESULT_ACCEPT, &responseBuffer2, &responseBuffer1);
+                        responseBuffer1.size = 0;
 
-                            responseBuffer1.size = 0;
+                        IsoSession_createDataSpdu(self->session, &responseBuffer1);
 
-                            IsoPresentation_createCpaMessage(self->presentation, &responseBuffer1,
-                                    &responseBuffer2);
+                        ByteBuffer_append(&responseBuffer1, responseBuffer2.buffer,
+                                    responseBuffer2.size);
 
-                            responseBuffer2.size = 0;
-
-                            IsoSession_createAcceptSpdu(self->session, &responseBuffer2,
-                                    responseBuffer1.size);
-
-                            ByteBuffer_append(&responseBuffer2, responseBuffer1.buffer,
-                                    responseBuffer1.size);
-
-                            CotpConnection_sendDataMessage(self->cotpConnection, &responseBuffer2);
-                        }
-                        else {
-                            if (DEBUG)
-                                printf("iso_connection: association error. No response from application!\n");
-                        }
+                        CotpConnection_sendDataMessage(self->cotpConnection, &responseBuffer1);
 
                         Semaphore_post(self->conMutex);
                     }
                     else {
                         if (DEBUG)
-                            printf("iso_connection: acse association failed\n");
-                        self->state = ISO_CON_STATE_STOPPED;
+                            printf("iso_connection: unknown presentation layer context!");
                     }
 
-                }
-                break;
-            case SESSION_DATA:
-                if (DEBUG)
-                    printf("iso_connection: session data indication\n");
-
-                pIndication = IsoPresentation_parseUserData(self->presentation, sessionUserData);
-
-                if (pIndication == PRESENTATION_ERROR) {
-                    if (DEBUG)
-                        printf("cotp_server: presentation error\n");
+                    break;
+                case SESSION_ERROR:
                     self->state = ISO_CON_STATE_STOPPED;
                     break;
-                }
-
-                if (self->presentation->nextContextId == 3) {
-                    if (DEBUG)
-                        printf("iso_connection: mms message\n");
-
-                    ByteBuffer* mmsRequest = &(self->presentation->nextPayload);
-
-                    Semaphore_wait(self->conMutex);
-
-                    self->msgRcvdHandler(self->msgRcvdHandlerParameter,
-                            mmsRequest, &responseBuffer1);
-
-                    IsoPresentation_createUserData(self->presentation,
-                            &responseBuffer2, &responseBuffer1);
-
-                    responseBuffer1.size = 0;
-
-                    IsoSession_createDataSpdu(self->session, &responseBuffer1);
-
-                    ByteBuffer_append(&responseBuffer1, responseBuffer2.buffer,
-                            responseBuffer2.size);
-
-                    CotpConnection_sendDataMessage(self->cotpConnection, &responseBuffer1);
-
-                    Semaphore_post(self->conMutex);
-                }
-                else {
-                	if (DEBUG)
-                		printf("iso_connection: unknown presentation layer context!");
-                }
-
-                break;
-            case SESSION_ERROR:
-                self->state = ISO_CON_STATE_STOPPED;
-                break;
-            }
+            }// switch (sIndication)
+        } // DATA_INDICATION
             break;
         case ERROR:
             if (DEBUG)
@@ -268,11 +269,11 @@ handleTcpConnection(IsoConnection self)
 
     Semaphore_destroy(self->conMutex);
 
-	free(self->receive_buf);
-	free(self->send_buf_1);
-	free(self->send_buf_2);
-	free(self->clientAddress);
-	free(self);
+    free(self->receive_buf);
+    free(self->send_buf_1);
+    free(self->send_buf_2);
+    free(self->clientAddress);
+    free(self);
 }
 
 IsoConnection
@@ -309,10 +310,10 @@ IsoConnection_getPeerAddress(IsoConnection self)
 void
 IsoConnection_sendMessage(IsoConnection self, ByteBuffer* message)
 {
-    Semaphore_wait(self->conMutex);
-
 	ByteBuffer presWriteBuffer;
 	ByteBuffer sessionWriteBuffer;
+
+    Semaphore_wait(self->conMutex);
 
 	ByteBuffer_wrap(&presWriteBuffer, self->send_buf_1, 0, SEND_BUF_SIZE);
 	ByteBuffer_wrap(&sessionWriteBuffer, self->send_buf_2, 0, SEND_BUF_SIZE);

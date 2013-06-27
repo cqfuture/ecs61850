@@ -117,13 +117,12 @@ void
 IsoClientConnection_sendMessage(IsoClientConnection self, ByteBuffer* payload)
 {
 	ByteBuffer message;
-	ByteBuffer_wrap(&message, self->buffer1, 0, ISO_CLIENT_BUFFER_SIZE);
+	CotpIndication indication;
+    ByteBuffer_wrap(&message, self->buffer1, 0, ISO_CLIENT_BUFFER_SIZE);
 
 	IsoSession_createDataSpdu(self->session, &message);
 
 	IsoPresentation_createUserData(self->presentation, &message, payload);
-
-	CotpIndication indication;
 
 	indication = CotpConnection_sendDataMessage(self->cotpConnection, &message);
 
@@ -170,6 +169,14 @@ IsoClientConnection_associate(IsoClientConnection self, IsoConnectionParameters*
 		ByteBuffer* payload)
 {
 	Socket socket = TcpSocket_create();
+    CotpIndication cotpIndication;
+    AcseConnection acse;
+    ByteBuffer acseBuffer;
+    ByteBuffer presentationBuffer;
+    ByteBuffer sessionBuffer;
+    IsoSessionIndication sessionIndication;
+    IsoPresentationIndication presentationIndication;
+    AcseIndication acseIndication;
 
 	self->socket = socket;
 
@@ -184,8 +191,7 @@ IsoClientConnection_associate(IsoClientConnection self, IsoConnectionParameters*
 	CotpConnection_init(self->cotpConnection, socket, self->cotpBuffer);
 
 	/* COTP handshake */
-	CotpIndication cotpIndication =
-			CotpConnection_sendConnectionRequestMessage(self->cotpConnection);
+	cotpIndication = CotpConnection_sendConnectionRequestMessage(self->cotpConnection);
 
 	cotpIndication = CotpConnection_parseIncomingMessage(self->cotpConnection);
 
@@ -193,9 +199,8 @@ IsoClientConnection_associate(IsoClientConnection self, IsoConnectionParameters*
 		goto returnError;
 
 	/* Upper layers handshake */
-	AcseConnection acse;
 
-	ByteBuffer acseBuffer;
+	
 	ByteBuffer_wrap(&acseBuffer, self->buffer1, 0, ISO_CLIENT_BUFFER_SIZE);
 
 	AcseConnection_init(&acse);
@@ -205,14 +210,12 @@ IsoClientConnection_associate(IsoClientConnection self, IsoConnectionParameters*
 
 	AcseConnection_createAssociateRequestMessage(&acse, &acseBuffer, payload);
 
-	ByteBuffer presentationBuffer;
 	ByteBuffer_wrap(&presentationBuffer, self->buffer2, 0, ISO_CLIENT_BUFFER_SIZE);
 
 	self->presentation = calloc(1, sizeof(IsoPresentation));
 	IsoPresentation_init(self->presentation);
 	IsoPresentation_createConnectPdu(self->presentation, &presentationBuffer, &acseBuffer);
 
-	ByteBuffer sessionBuffer;
 	ByteBuffer_wrap(&sessionBuffer, self->buffer1, 0, ISO_CLIENT_BUFFER_SIZE);
 
 	self->session = calloc(1, sizeof(IsoSession));
@@ -231,8 +234,6 @@ IsoClientConnection_associate(IsoClientConnection self, IsoConnectionParameters*
 	if (cotpIndication != DATA_INDICATION)
 		goto returnError;
 
-	IsoSessionIndication sessionIndication;
-
 	sessionIndication =
 			IsoSession_parseMessage(self->session, CotpConnection_getPayload(self->cotpConnection));
 
@@ -241,8 +242,6 @@ IsoClientConnection_associate(IsoClientConnection self, IsoConnectionParameters*
 		goto returnError;
 	}
 
-
-	IsoPresentationIndication presentationIndication;
 	presentationIndication =
 			IsoPresentation_parseAcceptMessage(self->presentation, IsoSession_getUserData(self->session));
 
@@ -250,8 +249,6 @@ IsoClientConnection_associate(IsoClientConnection self, IsoConnectionParameters*
 		if (DEBUG) printf("IsoClientConnection_associate: no presentation ok indication\n");
 		goto returnError;
 	}
-
-	AcseIndication acseIndication;
 
 	acseIndication = AcseConnection_parseMessage(&acse, &self->presentation->nextPayload);
 

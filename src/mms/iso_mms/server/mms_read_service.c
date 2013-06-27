@@ -36,11 +36,12 @@ static MmsPdu_t*
 createReadResponse(int invokeId)
 {
 	MmsPdu_t* mmsPdu = mmsServer_createConfirmedResponse(invokeId);
+    ReadResponse_t* readResponse;
 
 	mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.present =
 				ConfirmedServiceResponse_PR_read;
 
-	ReadResponse_t* readResponse =
+	readResponse =
 			&(mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.choice.read);
 
 	readResponse->variableAccessSpecification = NULL;
@@ -55,6 +56,7 @@ addNamedVariableValue(MmsTypeSpecification* namedVariable, MmsServerConnection* 
 		MmsDomain* domain, char* itemId, LinkedList typedValues)
 {
 	Data_t* dataElement = NULL;
+    int i;
 
 	if (namedVariable->type == MMS_STRUCTURE) {
 
@@ -65,17 +67,16 @@ addNamedVariableValue(MmsTypeSpecification* namedVariable, MmsServerConnection* 
 	        dataElement = mmsMsg_createBasicDataElement(value);
 	    }
 	    else {
+            int componentCount;
             dataElement = calloc(1, sizeof(Data_t));
 
-            int componentCount = namedVariable->typeSpec.structure.elementCount;
+            componentCount = namedVariable->typeSpec.structure.elementCount;
             dataElement->present = Data_PR_structure;
             dataElement->choice.structure = calloc(1, sizeof(DataSequence_t));
 
             dataElement->choice.structure->list.size = componentCount;
             dataElement->choice.structure->list.count = componentCount;
             dataElement->choice.structure->list.array = calloc(componentCount, sizeof(Data_t*));
-
-            int i;
 
             for (i = 0; i < componentCount; i++) {
                 char* newNameIdStr = createString(3, itemId, "$",
@@ -113,6 +114,7 @@ addComplexValueToResultList(AccessResult_t* accessResult, MmsTypeSpecification* 
 								MmsDomain* domain, char* nameIdStr)
 {
 	int componentCount = namedVariable->typeSpec.structure.elementCount;
+    int i;
 
 	accessResult->present = AccessResult_PR_structure;
 	accessResult->choice.structure.list.count = componentCount;
@@ -120,7 +122,6 @@ addComplexValueToResultList(AccessResult_t* accessResult, MmsTypeSpecification* 
 
 	accessResult->choice.structure.list.array = calloc(componentCount, sizeof(Data_t*));
 
-	int i;
 	for (i = 0; i < componentCount; i++) {
 	    //TODO use stack buffer instead of dynamic memory allocation
 
@@ -178,18 +179,20 @@ getComponentOfArrayElement(AlternateAccess_t* alternateAccess, MmsTypeSpecificat
 
     if (isAccessToArrayComponent(alternateAccess))
     {
+        int elementCount;
+        MmsTypeSpecification* structSpec;
+        int i;
         Identifier_t component = alternateAccess->list.array[0]->choice.unnamed->choice.selectAlternateAccess.alternateAccess
                 ->list.array[0]->choice.unnamed->choice.selectAccess.choice.component;
 
         if (component.size > 129)
             return NULL;
 
-        int elementCount = namedVariable->typeSpec.structure.elementCount;
+        elementCount = namedVariable->typeSpec.structure.elementCount;
 
 
-        MmsTypeSpecification* structSpec = namedVariable->typeSpec.array.elementTypeSpec;
+        structSpec = namedVariable->typeSpec.array.elementTypeSpec;
 
-        int i;
         for (i = 0; i < elementCount; i++) {
             if (strncmp (structSpec->typeSpec.structure.elements[i]->name, component.buf,
                     component.size) == 0)
@@ -213,15 +216,18 @@ alternateArrayAccess(MmsServerConnection* connection,
 	{
 		int lowIndex = mmsServer_getLowIndex(alternateAccess);
 		int numberOfElements = mmsServer_getNumberOfElements(alternateAccess);
+        int index;
+        MmsValue* value;
+        MmsValue* arrayValue;
 
 		if (DEBUG) printf("Alternate access index: %i elements %i\n",
 				lowIndex, numberOfElements);
 
-		int index = lowIndex;
+		index = lowIndex;
 
-		MmsValue* value = NULL;
+		value = NULL;
 
-		MmsValue* arrayValue = mmsServer_getValue(connection->server, domain, itemId);
+		arrayValue = mmsServer_getValue(connection->server, domain, itemId);
 
 		if (arrayValue != NULL) {
 
@@ -238,11 +244,12 @@ alternateArrayAccess(MmsServerConnection* connection,
 			    else
 			        value = MmsValue_getElement(arrayValue, index);
 			else {
-				value = MmsValue_createEmtpyArray(numberOfElements);
+				int resultIndex;
+                value = MmsValue_createEmtpyArray(numberOfElements);
 
 				MmsValue_setDeletable(value);
 
-				int resultIndex = 0;
+				resultIndex = 0;
 				while (index < lowIndex + numberOfElements) {
 					MmsValue* elementValue = NULL;
 
@@ -372,6 +379,8 @@ handleReadListOfVariablesRequest(
 				mmsMsg_createAccessResultsList(mmsPdu, variableCount);
 
 	LinkedList /*<MmsValue>*/ values = LinkedList_create();
+    int i;
+    asn_enc_rval_t rval;
 
 	if (isSpecWithResult(read)) { /* add specification to result */
 		mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.choice.read.variableAccessSpecification
@@ -379,8 +388,6 @@ handleReadListOfVariablesRequest(
 	}
 
 	MmsServer_lockModel(connection->server);
-
-	int i;
 
 	for (i = 0; i < variableCount; i++) {
 		AccessResult_t* resultListEntry = accessResultList[i];
@@ -401,6 +408,7 @@ handleReadListOfVariablesRequest(
 						varSpec.choice.name.choice.domainspecific.itemId);
 
 				MmsDomain* domain = MmsDevice_getDomain(MmsServer_getDevice(connection->server), domainIdStr);
+                MmsTypeSpecification* namedVariable;
 
 				if (domain == NULL) {
 					if (DEBUG) printf("MMS read: domain %s not found!\n", domainIdStr);
@@ -408,7 +416,7 @@ handleReadListOfVariablesRequest(
 					break;
 				}
 
-				MmsTypeSpecification* namedVariable = MmsDomain_getNamedVariable(domain, nameIdStr);
+				namedVariable = MmsDomain_getNamedVariable(domain, nameIdStr);
 
 				addNamedVariableToResultList(namedVariable, domain, nameIdStr, resultListEntry,
 						values, connection, alternateAccess);
@@ -430,8 +438,7 @@ handleReadListOfVariablesRequest(
 
 	MmsServer_unlockModel(connection->server);
 
-	asn_enc_rval_t rval =
-		der_encode_to_buffer(&asn_DEF_MmsPdu, mmsPdu, response->buffer, connection->maxPduSize);
+	rval = der_encode_to_buffer(&asn_DEF_MmsPdu, mmsPdu, response->buffer, connection->maxPduSize);
 
 	deleteValueList(values);
 
@@ -462,14 +469,14 @@ createNamedVariableListResponse(MmsServerConnection* connection, MmsNamedVariabl
 {
 
 	MmsPdu_t* mmsPdu = createReadResponse(invokeId);
-
 	LinkedList /*<MmsValue>*/ values = LinkedList_create();
 	LinkedList variables = MmsNamedVariableList_getVariableList(namedList);
-
 	int variableCount = LinkedList_size(variables);
-
 	AccessResult_t** accessResultList =
 		mmsMsg_createAccessResultsList(mmsPdu, variableCount);
+    int i;
+    LinkedList variable;
+    asn_enc_rval_t rval;
 
 	if (isSpecWithResult(read)) { /* add specification to result */
 		mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.choice.read.variableAccessSpecification
@@ -478,9 +485,7 @@ createNamedVariableListResponse(MmsServerConnection* connection, MmsNamedVariabl
 
 	MmsServer_lockModel(connection->server);
 
-	int i;
-
-	LinkedList variable = LinkedList_getNext(variables);
+	variable = LinkedList_getNext(variables);
 
 	for (i = 0; i < variableCount; i++) {
 		AccessResult_t* resultListEntry = accessResultList[i];
@@ -502,8 +507,7 @@ createNamedVariableListResponse(MmsServerConnection* connection, MmsNamedVariabl
 
 	MmsServer_unlockModel(connection->server);
 
-	asn_enc_rval_t rval =
-		der_encode_to_buffer(&asn_DEF_MmsPdu, mmsPdu, response->buffer, connection->maxPduSize);
+	rval = der_encode_to_buffer(&asn_DEF_MmsPdu, mmsPdu, response->buffer, connection->maxPduSize);
 
 	deleteValueList(values);
 

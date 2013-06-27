@@ -22,6 +22,8 @@
  */
 
 #include "acse.h"
+#include "ber_decode.h"
+#include "ber_encoder.h"
 
 static uint8_t appContextNameMms[] = { 0x28, 0xca, 0x22, 0x02, 0x03 };
 
@@ -92,11 +94,11 @@ checkAuthentication(AcseConnection* self, uint8_t* authMechanism, int authMechLe
 static int
 parseUserInformation(AcseConnection* self, uint8_t* buffer, int bufPos, int maxBufPos, bool* userInfoValid)
 {
-	if (DEBUG) printf("ACSE: parseUserInformation %i %i\n", bufPos, maxBufPos);
-
 	bool hasindirectReference = false;
 	bool isBer = false;
 	bool isDataValid = false;
+
+    if (DEBUG) printf("ACSE: parseUserInformation %i %i\n", bufPos, maxBufPos);
 
 	while (bufPos < maxBufPos) {
 		uint8_t tag = buffer[bufPos++];
@@ -159,11 +161,11 @@ parseUserInformation(AcseConnection* self, uint8_t* buffer, int bufPos, int maxB
 static AcseIndication
 parseAarePdu(AcseConnection* self, uint8_t* buffer, int bufPos, int maxBufPos)
 {
-	if (DEBUG) printf("ACSE: parse AARE PDU\n");
-
 	bool userInfoValid;
 
 	uint32_t result = 99;
+
+    if (DEBUG) printf("ACSE: parse AARE PDU\n");
 
 	while (bufPos < maxBufPos) {
 		uint8_t tag = buffer[bufPos++];
@@ -221,14 +223,13 @@ parseAarePdu(AcseConnection* self, uint8_t* buffer, int bufPos, int maxBufPos)
 static AcseIndication
 parseAarqPdu(AcseConnection* self, uint8_t* buffer, int bufPos, int maxBufPos)
 {
-	if (DEBUG) printf("ACSE: parse AARQ PDU\n");
-
 	uint8_t* authValue = NULL;
 	int authValueLen;
 	uint8_t* authMechanism = NULL;
 	int authMechLen;
 	bool userInfoValid = false;
 
+    if (DEBUG) printf("ACSE: parse AARQ PDU\n");
 	while (bufPos < maxBufPos) {
 		uint8_t tag = buffer[bufPos++];
 		int len;
@@ -377,6 +378,9 @@ AcseConnection_createAssociateResponseMessage(AcseConnection* self,
 	int assocDataLength;
 	int userInfoLength;
 	int nextRefLength;
+    int contentLength;
+    uint8_t* buffer;
+    int bufPos = 0;
 
 	if (payload != NULL) {
 		payloadLength = payload->size;
@@ -407,10 +411,9 @@ AcseConnection_createAssociateResponseMessage(AcseConnection* self,
 		variableContentLength += 2;
 	}
 
-	int contentLength = fixedContentLength + variableContentLength;
+	contentLength = fixedContentLength + variableContentLength;
 
-	uint8_t* buffer = writeBuffer->buffer;
-	int bufPos = 0;
+	buffer = writeBuffer->buffer;
 
 	bufPos = BerEncoder_encodeTL(0x61, contentLength, buffer, bufPos);
 
@@ -469,6 +472,12 @@ AcseConnection_createAssociateRequestMessage(AcseConnection* self,
 	int passwordLength;
 
 	int contentLength = 0;
+    /* user information */
+    int userInfoLength = 0;
+    int assocDataLength;
+    int userInfoLen;
+    uint8_t* buffer;
+    int bufPos = 0;
 
 	/* application context name */
 	contentLength += 9;
@@ -511,9 +520,6 @@ AcseConnection_createAssociateRequestMessage(AcseConnection* self,
 		}
 	}
 
-	/* user information */
-	int userInfoLength = 0;
-
 	/* single ASN1 type tag */
 	userInfoLength += payloadLength;
 	userInfoLength += 1;
@@ -527,12 +533,12 @@ AcseConnection_createAssociateRequestMessage(AcseConnection* self,
 	userInfoLength += 4;
 
 	/* association data */
-	int assocDataLength = userInfoLength;
+	assocDataLength = userInfoLength;
 	userInfoLength += BerEncoder_determineLengthSize(assocDataLength);
 	userInfoLength += 1;
 
 	/* user information */
-	int userInfoLen = userInfoLength;
+	userInfoLen = userInfoLength;
 	userInfoLength += BerEncoder_determineLengthSize(userInfoLength);
 	userInfoLength += 1;
 
@@ -542,8 +548,7 @@ AcseConnection_createAssociateRequestMessage(AcseConnection* self,
 
 	//contentLength += 3; /* ??? */
 
-	uint8_t* buffer = writeBuffer->buffer;
-	int bufPos = 0;
+	buffer = writeBuffer->buffer;
 
 	bufPos = BerEncoder_encodeTL(0x60, contentLength, buffer, bufPos);
 

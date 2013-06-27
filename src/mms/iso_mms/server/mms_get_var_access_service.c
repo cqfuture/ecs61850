@@ -47,18 +47,17 @@ createTypeSpecification (
 				typeSpec->choice.array.elementType);
 	}
 	else if (namedVariable->type == MMS_STRUCTURE) {
-
+        int componentCount;
+        int i;
 		typeSpec->present = TypeSpecification_PR_structure;
 
-		int componentCount = namedVariable->typeSpec.structure.elementCount;
+		componentCount = namedVariable->typeSpec.structure.elementCount;
 
 		typeSpec->choice.structure.components.list.count = componentCount;
 		typeSpec->choice.structure.components.list.size = componentCount;
 
 		typeSpec->choice.structure.components.list.array
 			= calloc(componentCount, sizeof(StructComponent_t*));
-
-		int i;
 
 		for (i = 0; i < componentCount; i++) {
 
@@ -189,10 +188,10 @@ deleteVariableAccessAttributesResponse(
 
 		int i;
 		for (i = 0; i < count; i++) {
-		    free(getVarAccessAttr->typeSpecification.choice.structure.components.list.array[i]->componentName->buf);
+		    TypeSpecification_t* typeSpec;
+            free(getVarAccessAttr->typeSpecification.choice.structure.components.list.array[i]->componentName->buf);
 			free(getVarAccessAttr->typeSpecification.choice.structure.components.list.array[i]->componentName);
-			TypeSpecification_t* typeSpec =
-					getVarAccessAttr->typeSpecification.choice.structure.components.list.array[i]->componentType;
+			typeSpec = getVarAccessAttr->typeSpecification.choice.structure.components.list.array[i]->componentType;
 			freeTypeSpecRecursive(typeSpec);
 			free(typeSpec);
 			free(getVarAccessAttr->typeSpecification.choice.structure.components.list.array[i]);
@@ -219,25 +218,27 @@ createVariableAccessAttributesResponse(
 	MmsDevice* device = MmsServer_getDevice(connection->server);
 
 	MmsDomain* domain = MmsDevice_getDomain(device, domainId);
+    MmsTypeSpecification* namedVariable;
+    MmsPdu_t* mmsPdu;
+    GetVariableAccessAttributesResponse_t* getVarAccessAttr;
+    asn_enc_rval_t rval;
 
 	if (domain == NULL) {
 		if (DEBUG) printf("mms_server: domain %s not known\n", domainId);
 		return -1;
 	}
 
-	MmsTypeSpecification* namedVariable = MmsDomain_getNamedVariable(domain, nameId);
+	namedVariable = MmsDomain_getNamedVariable(domain, nameId);
 
 	if (namedVariable == NULL) {
 		if (DEBUG) printf("mms_server: named variable %s not known\n", nameId);
 		return -1;
 	}
 
-	MmsPdu_t* mmsPdu = mmsServer_createConfirmedResponse(invokeId);
+	mmsPdu = mmsServer_createConfirmedResponse(invokeId);
 
 	mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.present =
 			ConfirmedServiceResponse_PR_getVariableAccessAttributes;
-
-	GetVariableAccessAttributesResponse_t* getVarAccessAttr;
 
 	getVarAccessAttr = &(mmsPdu->choice.confirmedResponsePdu.
 			confirmedServiceResponse.choice.getVariableAccessAttributes);
@@ -245,8 +246,6 @@ createVariableAccessAttributesResponse(
 	getVarAccessAttr->mmsDeletable = 0;
 
 	createTypeSpecification(namedVariable, &getVarAccessAttr->typeSpecification);
-
-	asn_enc_rval_t rval;
 
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 			mmsServer_write_out, (void*) response);

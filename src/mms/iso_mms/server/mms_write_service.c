@@ -33,11 +33,13 @@ createMmsWriteResponse(MmsServerConnection* connection,
 		int invokeId, ByteBuffer* response, MmsValueIndication indication)
 {
 	MmsPdu_t* mmsPdu = mmsServer_createConfirmedResponse(invokeId);
+    WriteResponse_t* writeResponse;
+    asn_enc_rval_t rval;
 
 	mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.present =
 			ConfirmedServiceResponse_PR_write;
 
-	WriteResponse_t* writeResponse =
+	writeResponse =
 			&(mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.choice.write);
 
 	writeResponse->list.count = 1;
@@ -59,8 +61,6 @@ createMmsWriteResponse(MmsServerConnection* connection,
 					DataAccessError_objectaccessdenied);
 	}
 
-	asn_enc_rval_t rval;
-
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 				mmsServer_write_out, (void*) response);
 
@@ -79,11 +79,23 @@ mmsServer_handleWriteRequest(
 		int invokeId,
 		ByteBuffer* response)
 {
+    ListOfVariableSeq_t* varSpec;
+    Identifier_t domainId;
+    char* domainIdStr;
+    MmsDevice* device;
+    MmsDomain* domain;
+    Identifier_t nameId;
+    char* nameIdStr;
+    MmsTypeSpecification* variable;
+    AlternateAccess_t* alternateAccess;
+    Data_t* dataElement;
+    MmsValue* value;
+    MmsValueIndication valueIndication;
+
 	if (writeRequest->variableAccessSpecification.choice.listOfVariable.list.count != 1)
 		return -1;
 
-	ListOfVariableSeq_t* varSpec =
-			writeRequest->variableAccessSpecification.choice.listOfVariable.list.array[0];
+	varSpec = writeRequest->variableAccessSpecification.choice.listOfVariable.list.array[0];
 
 	if (varSpec->variableSpecification.present != VariableSpecification_PR_name) {
 		createMmsWriteResponse(connection, invokeId, response, MMS_VALUE_ACCESS_DENIED);
@@ -95,13 +107,12 @@ mmsServer_handleWriteRequest(
 		return 0;
 	}
 
+	domainId = varSpec->variableSpecification.choice.name.choice.domainspecific.domainId;
+	domainIdStr = createStringFromBuffer(domainId.buf, domainId.size);
 
-	Identifier_t domainId = varSpec->variableSpecification.choice.name.choice.domainspecific.domainId;
-	char* domainIdStr = createStringFromBuffer(domainId.buf, domainId.size);
+	device = MmsServer_getDevice(connection->server);
 
-	MmsDevice* device = MmsServer_getDevice(connection->server);
-
-	MmsDomain* domain = MmsDevice_getDomain(device, domainIdStr);
+	domain = MmsDevice_getDomain(device, domainIdStr);
 
 	free(domainIdStr);
 
@@ -110,10 +121,11 @@ mmsServer_handleWriteRequest(
 		return 0;
 	}
 
-	Identifier_t nameId = varSpec->variableSpecification.choice.name.choice.domainspecific.itemId;
-	char* nameIdStr = createStringFromBuffer(nameId.buf, nameId.size);
+	nameId = varSpec->variableSpecification.choice.name.choice.domainspecific.itemId;
 
-	MmsTypeSpecification* variable = MmsDomain_getNamedVariable(domain, nameIdStr);
+    nameIdStr = createStringFromBuffer(nameId.buf, nameId.size);
+
+	variable = MmsDomain_getNamedVariable(domain, nameIdStr);
 
 	if (variable == NULL)
 		goto return_access_denied;
@@ -121,7 +133,7 @@ mmsServer_handleWriteRequest(
 	if (writeRequest->listOfData.list.count != 1)
 		goto return_access_denied;
 
-	AlternateAccess_t* alternateAccess = varSpec->alternateAccess;
+	alternateAccess = varSpec->alternateAccess;
 
 	if (alternateAccess != NULL) {
 		if (variable->type != MMS_ARRAY)
@@ -131,24 +143,26 @@ mmsServer_handleWriteRequest(
 			goto return_access_denied;
 	}
 
-	Data_t* dataElement = writeRequest->listOfData.list.array[0];
+	dataElement = writeRequest->listOfData.list.array[0];
 
-	MmsValue* value = mmsMsg_parseDataElement(dataElement);
+	value = mmsMsg_parseDataElement(dataElement);
 
 	if (value == NULL)
 		goto return_access_denied;
 
 	if (alternateAccess != NULL) {
 		MmsValue* cachedArray = MmsServer_getValueFromCache(connection->server, domain, nameIdStr);
+        int index;
+        MmsValue* elementValue;
 
 		if (cachedArray == NULL) {
 			MmsValue_delete(value);
 			goto return_access_denied;
 		}
 
-		int index = mmsServer_getLowIndex(alternateAccess);
+		index = mmsServer_getLowIndex(alternateAccess);
 
-		MmsValue* elementValue = MmsValue_getElement(cachedArray, index);
+		elementValue = MmsValue_getElement(cachedArray, index);
 
 		if (elementValue == NULL) {
 			MmsValue_delete(value);
@@ -163,7 +177,7 @@ mmsServer_handleWriteRequest(
 
 	MmsServer_lockModel(connection->server);
 
-	MmsValueIndication valueIndication =
+	valueIndication =
 			mmsServer_setValue(connection->server, domain, nameIdStr, value, connection);
 
 	MmsServer_unlockModel(connection->server);

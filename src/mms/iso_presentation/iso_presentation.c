@@ -57,12 +57,13 @@ encodeUserData(uint8_t* buffer, int bufPos, ByteBuffer* payload, bool encode)
 	int payloadLength = payload->size;
 
 	int encodedDataSetLength = 3; /* presentation-selector */
+    int fullyEncodedDataLength;
 
 	/* presentation-data */
 	encodedDataSetLength += payloadLength + 1;
 	encodedDataSetLength += BerEncoder_determineLengthSize(payloadLength);
 
-	int fullyEncodedDataLength = encodedDataSetLength;
+	fullyEncodedDataLength = encodedDataSetLength;
 
 	fullyEncodedDataLength += BerEncoder_determineLengthSize(encodedDataSetLength) + 1;
 
@@ -95,11 +96,12 @@ static void
 createAcceptPdu(IsoPresentation* self, ByteBuffer* writeBuffer, ByteBuffer* payload)
 {
 	int contentLength = 0;
+    int normalModeLength = 0;
+    uint8_t* buffer;
+    int bufPos = 0;
 
 	/* mode-selector */
 	contentLength += 5;
-
-	int normalModeLength = 0;
 
 	normalModeLength += 6; /* responding-presentation-selector */
 
@@ -111,8 +113,7 @@ createAcceptPdu(IsoPresentation* self, ByteBuffer* writeBuffer, ByteBuffer* payl
 
 	contentLength += BerEncoder_determineLengthSize(normalModeLength) + 1;
 
-	uint8_t* buffer = writeBuffer->buffer;
-	int bufPos = 0;
+	buffer = writeBuffer->buffer;
 
 	bufPos = BerEncoder_encodeTL(0x31, contentLength, buffer, bufPos);
 
@@ -144,16 +145,16 @@ static void
 createConnectPdu(IsoPresentation* self, ByteBuffer* writeBuffer, ByteBuffer* payload)
 {
 	int contentLength = 0;
+    int normalModeLength = 0;
+    int pclLength = 35;
+    uint8_t* buffer;
+    int bufPos = 0;
 
 	/* mode-selector */
 	contentLength += 5;
 
-	int normalModeLength = 0;
-
 	/* called- and calling-presentation-selector */
 	normalModeLength += 12;
-
-	int pclLength = 35;
 
 	normalModeLength += pclLength;
 
@@ -165,8 +166,7 @@ createConnectPdu(IsoPresentation* self, ByteBuffer* writeBuffer, ByteBuffer* pay
 
 	contentLength += 1 + BerEncoder_determineLengthSize(normalModeLength);
 
-	uint8_t* buffer = writeBuffer->buffer;
-	int bufPos = 0;
+	buffer = writeBuffer->buffer;
 
 	bufPos = BerEncoder_encodeTL(0x31, contentLength, buffer, bufPos);
 
@@ -238,6 +238,7 @@ parseNormalModeParameters(IsoPresentation* self, uint8_t* buffer, int len, int b
 	while (bufPos < endPos) {
 		uint8_t tag = buffer[bufPos++];
 		int len;
+        int intLen;
 
 		bufPos = BerDecoder_decodeLength(buffer, &len, bufPos, endPos);
 
@@ -277,7 +278,6 @@ parseNormalModeParameters(IsoPresentation* self, uint8_t* buffer, int len, int b
 				return -1;
 			}
 
-			int intLen;
 			bufPos = BerDecoder_decodeLength(buffer, &intLen, bufPos, endPos);
 			presentationSelector = BerDecoder_decodeUint32(buffer, intLen, bufPos);
 			bufPos += intLen;
@@ -321,17 +321,14 @@ parseConnectPdu
 {
 	uint8_t* buffer = byteBuffer->buffer;
 	int maxBufPos = byteBuffer->size;
-
 	int bufPos = 0;
-
 	uint8_t cpTag = buffer[bufPos++];
+    int len;
 
 	if (cpTag != 0x31) {
 		if (DEBUG) printf("PRES: not a CP type\n");
 		return PRESENTATION_ERROR;
 	}
-
-	int len;
 
 	bufPos = BerDecoder_decodeLength(buffer, &len, bufPos, maxBufPos);
 
@@ -348,13 +345,14 @@ parseConnectPdu
 		}
 
 		switch (tag) {
+            uint32_t modeSelector;
 		case 0xa0: /* mode-selection */
 			if (buffer[bufPos++] != 0x80) {
 				if (DEBUG) printf("PRES: mode-value of wrong type!\n");
 				return PRESENTATION_ERROR;
 			}
 			bufPos = BerDecoder_decodeLength(buffer, &len, bufPos, maxBufPos);
-			uint32_t modeSelector =  BerDecoder_decodeUint32(buffer, len, bufPos);
+			modeSelector =  BerDecoder_decodeUint32(buffer, len, bufPos);
 			if (DEBUG) printf("PRES: modesel %ui\n", modeSelector);
 			bufPos += len;
 			break;
@@ -387,6 +385,7 @@ IsoPresentation_parseAcceptMessage(IsoPresentation* self, ByteBuffer* byteBuffer
 	int maxBufPos = byteBuffer->size;
 
 	int bufPos = 0;
+    int len;
 
 	uint8_t cpTag = buffer[bufPos++];
 
@@ -394,8 +393,6 @@ IsoPresentation_parseAcceptMessage(IsoPresentation* self, ByteBuffer* byteBuffer
 		if (DEBUG) printf("PRES: not a CPA message\n");
 		return PRESENTATION_ERROR;
 	}
-
-	int len;
 
 	bufPos = BerDecoder_decodeLength(buffer, &len, bufPos, maxBufPos);
 
@@ -450,7 +447,7 @@ IsoPresentation_createUserData(IsoPresentation* self, ByteBuffer* writeBuffer, B
 	int payloadLength = ByteBuffer_getSize(payload);
 
 	int userDataLengthFieldSize = BerEncoder_determineLengthSize(payloadLength);
-;
+
 	int pdvListLength = payloadLength + (userDataLengthFieldSize + 4);
 
 	int pdvListLengthFieldSize = BerEncoder_determineLengthSize(pdvListLength);
@@ -480,14 +477,14 @@ IsoPresentation_parseUserData(IsoPresentation* self, ByteBuffer* readBuffer)
 	uint8_t* buffer = readBuffer->buffer;
 
 	int bufPos = 0;
+    int len;
+    int userDataLength;
 
 	if (length < 9)
 		return PRESENTATION_ERROR;
 
 	if (buffer[bufPos++] != 0x61)
 		return PRESENTATION_ERROR;
-
-	int len;
 
 	bufPos = BerDecoder_decodeLength(buffer, &len, bufPos, length);
 
@@ -505,9 +502,7 @@ IsoPresentation_parseUserData(IsoPresentation* self, ByteBuffer* readBuffer)
 	self->nextContextId = buffer[bufPos++];
 
 	if (buffer[bufPos++] != 0xa0)
-		return PRESENTATION_ERROR;;
-
-	int userDataLength;
+		return PRESENTATION_ERROR;
 
 	bufPos = BerDecoder_decodeLength(buffer, &userDataLength, bufPos, length);
 

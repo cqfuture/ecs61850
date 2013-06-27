@@ -29,10 +29,11 @@
 static int
 setIntegerValue(Asn1PrimitiveValue* self, uint8_t* valueBuffer, int bufferSize)
 {
+    int size;
 	if (ORDER_LITTLE_ENDIAN)
 		BerEncoder_revertByteOrder(valueBuffer, bufferSize);
 
-	int size = BerEncoder_compressInteger(valueBuffer, bufferSize);
+	size = BerEncoder_compressInteger(valueBuffer, bufferSize);
 
 	if (size <= self->maxSize) {
 		self->size = size;

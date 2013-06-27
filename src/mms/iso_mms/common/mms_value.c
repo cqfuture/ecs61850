@@ -28,7 +28,7 @@
 #include "string_utilities.h"
 #include "platform_endian.h"
 
-static inline int
+static int
 bitStringByteSize(MmsValue* value)
 {
 	int bitSize = value->value.bitString.size;
@@ -41,12 +41,12 @@ updateStructuredComponent(MmsValue* self, MmsValue* update)
 	int componentCount;
 	MmsValue** selfValues;
 	MmsValue** updateValues;
+    int i;
 
     componentCount = self->value.structure.size;
     selfValues = self->value.structure.components;
     updateValues = update->value.structure.components;
 
-	int i;
 	for (i = 0; i < componentCount; i++) {
 		MmsValue_update(selfValues[i], updateValues[i]);
 	}
@@ -292,15 +292,15 @@ void
 MmsValue_setAllBitStringBits(MmsValue* self)
 {
 	int byteSize = getBitStringByteSize(self);
-
+    int padding;
 	int i;
+    uint8_t paddingMask = 0;
+
 	for (i = 0; i < byteSize; i++) {
 		self->value.bitString.buf[i] = 0xff;
 	}
 
-    int padding = (byteSize * 8) - self->value.bitString.size;
-
-    uint8_t paddingMask = 0;
+    padding = (byteSize * 8) - self->value.bitString.size;
 
     for (i = 0; i < padding; i++) {
         paddingMask += (1 << i);
@@ -509,10 +509,12 @@ MmsValue_setUtcTime(MmsValue* value, uint32_t timeval)
 MmsValue*
 MmsValue_setUtcTimeMs(MmsValue* self, uint64_t timeval)
 {
-	uint32_t timeval32 = (timeval / 1000LL);
+	uint32_t timeval32 = (uint32_t)(timeval / 1000LL);
 
     uint8_t* timeArray = (uint8_t*) &timeval32;
 	uint8_t* valueArray = self->value.utcTime;
+    uint32_t remainder;
+    uint32_t fractionOfSecond;
 
 #ifdef ORDER_LITTLE_ENDIAN
 		memcpyReverseByteOrder(valueArray, timeArray, 4);
@@ -520,8 +522,8 @@ MmsValue_setUtcTimeMs(MmsValue* self, uint64_t timeval)
 		memcpy(valueArray, timeArray, 4);
 #endif
 
-	uint32_t remainder = (timeval % 1000LL);
-	uint32_t fractionOfSecond = (remainder) * 16777 + ((remainder * 216) / 1000);
+	remainder = (timeval % 1000LL);
+	fractionOfSecond = (remainder) * 16777 + ((remainder * 216) / 1000);
 
 	/* encode fraction of second */
 	valueArray[4] = ((fractionOfSecond >> 16) & 0xff);
@@ -550,6 +552,9 @@ MmsValue_getUtcTimeInMs(MmsValue* self)
 {
     uint32_t timeval32;
     uint8_t* valueArray = self->value.utcTime;
+    uint32_t fractionOfSecond = 0;
+    uint32_t remainder;
+    uint64_t msVal;
 
 #ifdef ORDER_LITTLE_ENDIAN
     memcpyReverseByteOrder(&timeval32, valueArray, 4);
@@ -557,15 +562,13 @@ MmsValue_getUtcTimeInMs(MmsValue* self)
     memcpy(&timeval32, valueArray, 4);
 #endif
 
-    uint32_t fractionOfSecond = 0;
-
     fractionOfSecond = (valueArray[4] << 16);
     fractionOfSecond += (valueArray[5] << 8);
     fractionOfSecond += (valueArray[6]);
 
-    uint32_t remainder = fractionOfSecond / 16777;
+    remainder = fractionOfSecond / 16777;
 
-    uint64_t msVal = (timeval32 * 1000LL) + remainder;
+    msVal = (timeval32 * 1000LL) + remainder;
 
     return (uint64_t) msVal;
 }
@@ -662,7 +665,7 @@ MmsValue_toFloat(MmsValue* value)
 		}
 		else if (value->value.floatingPoint.formatWidth == 64) {
 			float val;
-			val = *((double*) (value->value.floatingPoint.buf));
+			val = (float)*((double*) (value->value.floatingPoint.buf));
 			return val;
 		}
 	}
@@ -719,20 +722,20 @@ else {
 MmsValue*
 MmsValue_clone(MmsValue* value)
 {
+    int size;
 	MmsValue* newValue = calloc(1, sizeof(MmsValue));
 	newValue->deleteValue = value->deleteValue;
 	newValue->type = value->type;
-	int size;
 
 	switch(value->type) {
 
 	case MMS_ARRAY:
 	case MMS_STRUCTURE:
 		{
+            int i;
 			int componentCount = value->value.structure.size;
 			newValue->value.structure.size = componentCount;
 			newValue->value.structure.components = calloc(componentCount, sizeof(MmsValue*));
-			int i;
 			for (i = 0; i < componentCount; i++) {
 				newValue->value.structure.components[i] =
 						MmsValue_clone(value->value.structure.components[i]);
@@ -791,7 +794,7 @@ MmsValue_clone(MmsValue* value)
 	return newValue;
 }
 
-uint32_t inline
+uint32_t 
 MmsValue_getArraySize(MmsValue* value)
 {
 	return value->value.structure.size;
@@ -907,13 +910,14 @@ MmsValue*
 MmsValue_newStructure(MmsTypeSpecification* typeSpec)
 {
 	MmsValue* self = calloc(1, sizeof(MmsValue));
+    int componentCount;
+    int i;
 
 	self->type = MMS_STRUCTURE;
-	int componentCount = typeSpec->typeSpec.structure.elementCount;
+	componentCount = typeSpec->typeSpec.structure.elementCount;
 	self->value.structure.size = componentCount;
 	self->value.structure.components = calloc(componentCount, sizeof(MmsValue*));
 
-	int i;
 	for (i = 0; i < componentCount; i++) {
 		self->value.structure.components[i] =
 				MmsValue_newDefaultValue(typeSpec->typeSpec.structure.elements[i]);
@@ -945,9 +949,10 @@ MmsValue_newDefaultValue(MmsTypeSpecification* typeSpec)
 		value = calloc(1, sizeof(MmsValue));
 		value->type = MMS_BIT_STRING;
 		{
+            int size;
 			int bitSize = abs(typeSpec->typeSpec.bitString);
 			value->value.bitString.size = bitSize;
-			int size = (bitSize / 8) + ((bitSize % 8) > 0);
+			size = (bitSize / 8) + ((bitSize % 8) > 0);
 			value->value.bitString.buf = calloc(1, size);
 		}
 		break;
@@ -996,7 +1001,7 @@ MmsValue_newDefaultValue(MmsTypeSpecification* typeSpec)
 	return value;
 }
 
-static inline
+static void
 setVisibleStringValue(MmsValue* value, char* string)
 {
 	if (string != NULL)
@@ -1034,8 +1039,9 @@ void
 MmsValue_setBinaryTime(MmsValue* value, uint64_t timestamp)
 {
     uint64_t mmsTime = timestamp - (441763200000LL);
-
     uint8_t* binaryTimeBuf = value->value.binaryTime.buf;
+    uint32_t msSinceMidnight;
+    uint8_t* msSinceMidnightBuf;
 
     if (value->value.binaryTime.size == 6) {
         uint16_t daysDiff = mmsTime / (86400000LL);
@@ -1051,8 +1057,8 @@ MmsValue_setBinaryTime(MmsValue* value, uint64_t timestamp)
         }
     }
 
-    uint32_t msSinceMidnight = mmsTime % (86400000LL);
-    uint8_t* msSinceMidnightBuf = &msSinceMidnight;
+    msSinceMidnight = mmsTime % (86400000LL);
+    msSinceMidnightBuf = &msSinceMidnight;
 
     if (ORDER_LITTLE_ENDIAN) {
         binaryTimeBuf[0] = msSinceMidnightBuf[3];
@@ -1072,25 +1078,22 @@ uint64_t
 MmsValue_getBinaryTimeAsUtcMs(MmsValue* value)
 {
     uint64_t timestamp = 0;
-
     uint8_t* binaryTimeBuf = value->value.binaryTime.buf;
+    uint32_t msSinceMidnight = 0;
 
     if (value->value.binaryTime.size == 6) {
 
         uint16_t daysDiff;
+        uint64_t mmsTime;
 
         daysDiff = binaryTimeBuf[4] * 256;
         daysDiff += binaryTimeBuf[5];
-
-        uint64_t mmsTime;
 
         mmsTime = daysDiff * (86400000LL);
 
 
         timestamp = mmsTime + (441763200000LL);
     }
-
-    uint32_t msSinceMidnight = 0;
 
     msSinceMidnight = binaryTimeBuf[0] << 24;
     msSinceMidnight += binaryTimeBuf[1] << 16;
@@ -1102,7 +1105,7 @@ MmsValue_getBinaryTimeAsUtcMs(MmsValue* value)
     return timestamp;
 }
 
-static inline
+static void
 setMmsStringValue(MmsValue* value, char* string)
 {
 	if (string != NULL)
@@ -1169,11 +1172,13 @@ MmsValue_toString(MmsValue* value)
 MmsValue*
 MmsValue_newUtcTime(uint32_t timeval)
 {
+    uint8_t* timeArray;
+    uint8_t* valueArray;
 	MmsValue* value = calloc(1, sizeof(MmsValue));
 	value->type = MMS_UTC_TIME;
 
-	uint8_t* timeArray = (uint8_t*) &timeval;
-	uint8_t* valueArray = value->value.utcTime;
+	timeArray = (uint8_t*) &timeval;
+	valueArray = value->value.utcTime;
 
 #ifdef ORDER_LITTLE_ENDIAN
 	valueArray[0] = timeArray[3];
@@ -1206,12 +1211,12 @@ MmsValue*
 MmsValue_createArray(MmsTypeSpecification* elementType, int size)
 {
 	MmsValue* array = calloc(1, sizeof(MmsValue));
+    int i;
 
 	array->type = MMS_ARRAY;
 	array->value.structure.size = size;
 	array->value.structure.components = calloc(size, sizeof(MmsValue*));
 
-	int i;
 	for (i = 0; i < size; i++) {
 		array->value.structure.components[i] = MmsValue_newDefaultValue(elementType);
 	}
@@ -1223,12 +1228,12 @@ MmsValue*
 MmsValue_createEmtpyArray(int size)
 {
 	MmsValue* array = calloc(1, sizeof(MmsValue));
+    int i;
 
 	array->type = MMS_ARRAY;
 	array->value.structure.size = size;
 	array->value.structure.components = calloc(size, sizeof(MmsValue*));
 
-	int i;
 	for (i = 0; i < size; i++) {
 		array->value.structure.components[i] = NULL;
 	}
@@ -1270,7 +1275,7 @@ MmsValue_getElement(MmsValue* complexValue, int index)
 	return complexValue->value.structure.components[index];
 }
 
-void inline
+void
 MmsValue_setDeletable(MmsValue* value)
 {
 	value->deleteValue = 1;
@@ -1282,7 +1287,7 @@ MmsValue_isDeletable(MmsValue* value)
 	return value->deleteValue;
 }
 
-MmsType inline
+MmsType 
 MmsValue_getType(MmsValue* value)
 {
 	return value->type;

@@ -52,7 +52,7 @@ typedef enum {
     OK, ERROR, CONNECT_INDICATION, DATA_INDICATION, DISCONNECT_INDICATION
 } CotpIndication;
 
-int inline /* in byte */
+int  /* in byte */
 CotpConnection_getTpduSize(CotpConnection* self);
 
 void

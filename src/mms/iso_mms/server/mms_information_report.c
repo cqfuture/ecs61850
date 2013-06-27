@@ -37,6 +37,13 @@ MmsServerConnection_sendInformationReport(MmsServerConnection* self, char* domai
     uint32_t accessResultSize = 0;
     uint32_t listOfAccessResultSize;
     uint32_t informationReportSize;
+    int variableCount;
+    LinkedList value;
+    int i;
+    uint32_t informationReportContentSize;
+    ByteBuffer* reportBuffer;
+    uint8_t* buffer;
+    int bufPos;
 
     if (domainId != NULL) {
 //        report->variableAccessSpecification.choice.variableListName.present = ObjectName_PR_domainspecific;
@@ -52,12 +59,10 @@ MmsServerConnection_sendInformationReport(MmsServerConnection* self, char* domai
         variableAccessSpecSize += 1; /* space for tag (a1) */
     }
 
-    int variableCount = LinkedList_size(values);
+    variableCount = LinkedList_size(values);
 
     /* iterate values list and add values to the accessResultList */
-    LinkedList value = LinkedList_getNext(values);
-
-    int i;
+    value = LinkedList_getNext(values);
 
     for (i = 0; i < variableCount; i++) {
 
@@ -71,17 +76,17 @@ MmsServerConnection_sendInformationReport(MmsServerConnection* self, char* domai
     listOfAccessResultSize = accessResultSize +
             BerEncoder_determineLengthSize(accessResultSize) + 1;
 
-    uint32_t informationReportContentSize = variableAccessSpecSize + listOfAccessResultSize;
+    informationReportContentSize = variableAccessSpecSize + listOfAccessResultSize;
 
     informationReportSize = 1 +  informationReportContentSize +
             BerEncoder_determineLengthSize(informationReportContentSize);
 
     if (DEBUG) printf("sendInfReport: %i items\n", variableCount);
 
-    ByteBuffer* reportBuffer = ByteBuffer_create(NULL, self->maxPduSize);
+    reportBuffer = ByteBuffer_create(NULL, self->maxPduSize);
 
-    uint8_t* buffer = reportBuffer->buffer;
-    int bufPos = 0;
+    buffer = reportBuffer->buffer;
+    bufPos  = 0;
 
 
     /* encode */
@@ -112,6 +117,3 @@ MmsServerConnection_sendInformationReport(MmsServerConnection* self, char* domai
 
     ByteBuffer_destroy(reportBuffer);
 }
-
-
-

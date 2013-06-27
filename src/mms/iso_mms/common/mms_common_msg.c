@@ -25,6 +25,7 @@
 #include "mms_common_internal.h"
 #include "platform_endian.h"
 #include "stack_config.h"
+#include "string_utilities.h"
 
 void
 memcpyReverseByteOrder(uint8_t* dst, uint8_t* src, int size)
@@ -68,12 +69,12 @@ mmsMsg_createBasicDataElement(MmsValue* value)
     case MMS_ARRAY:
         {
             int size = MmsValue_getArraySize(value);
+            int i;
             dataElement->present = Data_PR_array;
             dataElement->choice.array = calloc(1, sizeof(DataSequence_t));
             dataElement->choice.array->list.count = size;
             dataElement->choice.array->list.size = size;
             dataElement->choice.array->list.array = calloc(size, sizeof(Data_t*));
-            int i;
             for (i = 0; i < size; i++) {
                 dataElement->choice.array->list.array[i] =
                         mmsMsg_createBasicDataElement(MmsValue_getElement(value, i));
@@ -83,6 +84,7 @@ mmsMsg_createBasicDataElement(MmsValue* value)
 
     case MMS_STRUCTURE:
         {
+            int i;
             int size = value->value.structure.size;
 
             dataElement->present = Data_PR_structure;
@@ -90,7 +92,6 @@ mmsMsg_createBasicDataElement(MmsValue* value)
             dataElement->choice.structure->list.count = size;
             dataElement->choice.structure->list.size = size;
             dataElement->choice.structure->list.array = calloc(size, sizeof(Data_t*));
-            int i;
             for (i = 0; i < size; i++) {
                 dataElement->choice.structure->list.array[i] = mmsMsg_createBasicDataElement(
                         value->value.structure.components[i]);
@@ -99,12 +100,16 @@ mmsMsg_createBasicDataElement(MmsValue* value)
         break;
 
     case MMS_BIT_STRING:
-        dataElement->present = Data_PR_bitstring;
-        dataElement->choice.bitstring.buf = value->value.bitString.buf;
-        int size = (value->value.bitString.size / 8) + ((value->value.bitString.size % 8) > 0);
-        int unused = 8 - (value->value.bitString.size % 8);
-        dataElement->choice.bitstring.size = size; /* size in bytes */
-        dataElement->choice.bitstring.bits_unused = unused;
+        {
+            int size;
+            int unused;
+            dataElement->present = Data_PR_bitstring;
+            dataElement->choice.bitstring.buf = value->value.bitString.buf;
+            size = (value->value.bitString.size / 8) + ((value->value.bitString.size % 8) > 0);
+            unused = 8 - (value->value.bitString.size % 8);
+            dataElement->choice.bitstring.size = size; /* size in bytes */
+            dataElement->choice.bitstring.bits_unused = unused;
+        }
         break;
 
     case MMS_BOOLEAN:
@@ -193,15 +198,15 @@ mmsMsg_parseDataElement(Data_t* dataElement)
     MmsValue* value = NULL;
 
     if (dataElement->present == Data_PR_structure) {
+        int componentCount;
+        int i;
         value = calloc(1, sizeof(MmsValue));
 
-        int componentCount = dataElement->choice.structure->list.count;
+        componentCount = dataElement->choice.structure->list.count;
 
         value->type = MMS_STRUCTURE;
         value->value.structure.size = componentCount;
         value->value.structure.components = calloc(componentCount, sizeof(MmsValue*));
-
-        int i;
 
         for (i = 0; i < componentCount; i++) {
             value->value.structure.components[i] =
@@ -209,15 +214,15 @@ mmsMsg_parseDataElement(Data_t* dataElement)
         }
     }
     else if (dataElement->present == Data_PR_array) {
+        int componentCount;
+        int i;
         value = calloc(1, sizeof(MmsValue));
 
-        int componentCount = dataElement->choice.array->list.count;
+        componentCount = dataElement->choice.array->list.count;
 
         value->type = MMS_ARRAY;
         value->value.structure.size = componentCount;
         value->value.structure.components = calloc(componentCount, sizeof(MmsValue*));
-
-        int i;
 
         for (i = 0; i < componentCount; i++) {
             value->value.structure.components[i] =
@@ -243,10 +248,11 @@ mmsMsg_parseDataElement(Data_t* dataElement)
                     dataElement->choice.visiblestring.size);
         }
         else if (dataElement->present == Data_PR_bitstring) {
+            int size;
             value = calloc(1, sizeof(MmsValue));
 
             value->type = MMS_BIT_STRING;
-            int size = dataElement->choice.bitstring.size;
+            size = dataElement->choice.bitstring.size;
 
             value->value.bitString.size = (size * 8)
                     - dataElement->choice.bitstring.bits_unused;
@@ -257,16 +263,18 @@ mmsMsg_parseDataElement(Data_t* dataElement)
 
         }
         else if (dataElement->present == Data_PR_floatingpoint) {
+            int size;
             value = calloc(1, sizeof(MmsValue));
-            int size = dataElement->choice.floatingpoint.size;
+            size = dataElement->choice.floatingpoint.size;
 
             value->type = MMS_FLOAT;
 
             if (size == 5) { /* FLOAT32 */
+                uint8_t* floatBuf;
                 value->value.floatingPoint.formatWidth = 32;
                 value->value.floatingPoint.exponentWidth = dataElement->choice.floatingpoint.buf[0];
 
-                uint8_t* floatBuf = (dataElement->choice.floatingpoint.buf + 1);
+                floatBuf = (dataElement->choice.floatingpoint.buf + 1);
 
                 value->value.floatingPoint.buf = malloc(4);
 #ifdef ORDER_LITTLE_ENDIAN
@@ -277,10 +285,11 @@ mmsMsg_parseDataElement(Data_t* dataElement)
             }
 
             if (size == 9) { /* FLOAT64 */
+                uint8_t* floatBuf;
                 value->value.floatingPoint.formatWidth = 64;
                 value->value.floatingPoint.exponentWidth = dataElement->choice.floatingpoint.buf[0];
 
-                uint8_t* floatBuf = (dataElement->choice.floatingpoint.buf + 1);
+                floatBuf = (dataElement->choice.floatingpoint.buf + 1);
 
                 value->value.floatingPoint.buf = malloc(8);
 #ifdef ORDER_LITTLE_ENDIAN
@@ -296,9 +305,10 @@ mmsMsg_parseDataElement(Data_t* dataElement)
             memcpy(value->value.utcTime, dataElement->choice.utctime.buf, 8);
         }
         else if (dataElement->present == Data_PR_octetstring) {
+            int size;
             value = calloc(1, sizeof(MmsValue));
             value->type = MMS_OCTET_STRING;
-            int size = dataElement->choice.octetstring.size;
+            size = dataElement->choice.octetstring.size;
             value->value.octetString.size = size;
             value->value.octetString.buf = malloc(size);
             memcpy(value->value.octetString.buf, dataElement->choice.octetstring.buf, size);
@@ -326,11 +336,13 @@ Data_t*
 mmsMsg_createDataElement(MmsValue* value)
 {
     if (value->type == MMS_STRUCTURE) {
+        int elementCount;
         Data_t* dataElement = calloc(1, sizeof(Data_t));
+        int i;
 
         dataElement->present = Data_PR_structure;
 
-        int elementCount = value->value.structure.size;
+        elementCount = value->value.structure.size;
 
         dataElement->choice.structure = calloc(1, sizeof(DataSequence_t));
 
@@ -338,8 +350,6 @@ mmsMsg_createDataElement(MmsValue* value)
         dataElement->choice.structure->list.count = elementCount;
 
         dataElement->choice.structure->list.array = calloc(elementCount, sizeof(Data_t*));
-
-        int i;
 
         for (i = 0; i < elementCount; i++) {
             dataElement->choice.structure->list.array[i] =
@@ -368,12 +378,12 @@ mmsMsg_addResultToResultList(AccessResult_t* accessResult, MmsValue* value)
         switch (value->type) {
         case MMS_ARRAY:
             {
+            int i;
             int size = value->value.structure.size;
             accessResult->present = AccessResult_PR_array;
             accessResult->choice.array.list.count = size;
             accessResult->choice.array.list.size = size;
             accessResult->choice.array.list.array = calloc(size, sizeof(Data_t*));
-            int i;
             for (i = 0; i < size; i++) {
                 accessResult->choice.array.list.array[i] =
                         mmsMsg_createDataElement(value->value.structure.components[i]);
@@ -382,12 +392,12 @@ mmsMsg_addResultToResultList(AccessResult_t* accessResult, MmsValue* value)
             break;
         case MMS_STRUCTURE:
             {
+            int i;
             int size = value->value.structure.size;
             accessResult->present = AccessResult_PR_structure;
             accessResult->choice.structure.list.count = size;
             accessResult->choice.structure.list.size = size;
             accessResult->choice.structure.list.array = calloc(size, sizeof(Data_t*));
-            int i;
             for (i = 0; i < size; i++) {
                 accessResult->choice.structure.list.array[i] =
                         mmsMsg_createDataElement(value->value.structure.components[i]);
@@ -396,12 +406,16 @@ mmsMsg_addResultToResultList(AccessResult_t* accessResult, MmsValue* value)
         }
             break;
         case MMS_BIT_STRING:
+            {
+            int size;
+            int unused;
             accessResult->present = AccessResult_PR_bitstring;
             accessResult->choice.bitstring.buf = value->value.bitString.buf;
-            int size = (value->value.bitString.size / 8) + ((value->value.bitString.size % 8) > 0);
-            int unused = 8 - (value->value.bitString.size % 8);
+            size = (value->value.bitString.size / 8) + ((value->value.bitString.size % 8) > 0);
+            unused = 8 - (value->value.bitString.size % 8);
             accessResult->choice.bitstring.size = size; /* size in bytes */
             accessResult->choice.bitstring.bits_unused = unused;
+            }
             break;
         case MMS_BOOLEAN:
             accessResult->present = AccessResult_PR_boolean;
@@ -482,18 +496,18 @@ mmsMsg_createAccessResultsList(MmsPdu_t* mmsPdu, int resultsCount)
 {
     ReadResponse_t* readResponse =
             &(mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.choice.read);
+    int i;
+    AccessResult_t** accessResultList;
 
     readResponse->listOfAccessResult.list.size = resultsCount;
     readResponse->listOfAccessResult.list.count = resultsCount;
     readResponse->listOfAccessResult.list.array = calloc(resultsCount, sizeof(AccessResult_t*));
 
-    int i;
-
     for (i = 0; i < resultsCount; i++) {
         readResponse->listOfAccessResult.list.array[i] = calloc(1, sizeof(AccessResult_t));
     }
 
-    AccessResult_t** accessResultList = readResponse->listOfAccessResult.list.array;
+    accessResultList = readResponse->listOfAccessResult.list.array;
 
     return accessResultList;
 }

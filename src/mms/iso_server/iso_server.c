@@ -109,13 +109,13 @@ IsoServer_getState(IsoServer self)
     return self->state;
 }
 
-inline void
+void
 IsoServer_setAuthenticationParameter(IsoServer self, AcseAuthenticationParameter authParameter)
 {
     self->authParameter = authParameter;
 }
 
-inline AcseAuthenticationParameter
+AcseAuthenticationParameter
 IsoServer_getAuthenticationParameter(IsoServer self)
 {
     return self->authParameter;

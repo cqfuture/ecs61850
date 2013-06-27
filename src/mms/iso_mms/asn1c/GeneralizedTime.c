@@ -68,12 +68,13 @@ static struct tm *gmtime_r(const time_t *tloc, struct tm *result) {
 #endif	/* HAVE_TM_GMTOFF */
 
 #if	(defined(_EMULATE_TIMEGM) || !defined(HAVE_TM_GMTOFF))
-#warning "PLEASE STOP AND READ!"
-#warning "  timegm() is implemented via getenv(\"TZ\")/setenv(\"TZ\"), which may be not thread-safe."
-#warning "  "
-#warning "  You must fix the code by inserting appropriate locking"
-#warning "  if you want to use asn_GT2time() or asn_UT2time()."
-#warning "PLEASE STOP AND READ!"
+// modify by sabin
+// #warning "PLEASE STOP AND READ!"
+// #warning "  timegm() is implemented via getenv(\"TZ\")/setenv(\"TZ\"), which may be not thread-safe."
+// #warning "  "
+// #warning "  You must fix the code by inserting appropriate locking"
+// #warning "  if you want to use asn_GT2time() or asn_UT2time()."
+// #warning "PLEASE STOP AND READ!"
 #endif	/* _EMULATE_TIMEGM */
 
 /*
@@ -231,7 +232,7 @@ GeneralizedTime_encode_xer(asn_TYPE_descriptor_t *td, void *sptr,
 		asn_app_consume_bytes_f *cb, void *app_key) {
 
 	if(flags & XER_F_CANONICAL) {
-		GeneralizedTime_t *gt;
+		GeneralizedTime_t *gt = NULL;
 		asn_enc_rval_t rv;
 		int fv, fd;		/* fractional parts */
 		struct tm tm;
@@ -242,7 +243,8 @@ GeneralizedTime_encode_xer(asn_TYPE_descriptor_t *td, void *sptr,
 				&& errno != EPERM)
 			_ASN_ENCODE_FAILED;
 
-		//gt = asn_time2GT_frac(0, &tm, fv, fd, 1);
+        // ??????
+		// gt = asn_time2GT_frac(0, &tm, fv, fd, 1);
 		if(!gt) _ASN_ENCODE_FAILED;
 	
 		rv = OCTET_STRING_encode_xer_utf8(td, sptr, ilevel, flags,

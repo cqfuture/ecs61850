@@ -35,11 +35,10 @@ void
 createDefineNamedVariableListMsg(long invokeId, char* listName)
 {
 	MmsPdu_t* mmsPdu = mmsClient_createConfirmedRequestPdu(invokeId);
+    DefineNamedVariableListRequest_t* request;
 
 	mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.present =
 		ConfirmedServiceRequest_PR_defineNamedVariableList;
-
-	DefineNamedVariableListRequest_t* request;
 
 	request = &(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.defineNamedVariableList);
 

@@ -34,11 +34,11 @@ mmsClient_createMmsGetNameListRequestVMDspecific(long invokeId, ByteBuffer* writ
 		char* continueAfter)
 {
 	MmsPdu_t* mmsPdu = mmsClient_createConfirmedRequestPdu(invokeId);
+    GetNameListRequest_t* request;
+    asn_enc_rval_t rval;
 
 	mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.present =
 				ConfirmedServiceRequest_PR_getNameList;
-
-	GetNameListRequest_t* request;
 
 	request = &(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.getNameList);
 
@@ -56,8 +56,6 @@ mmsClient_createMmsGetNameListRequestVMDspecific(long invokeId, ByteBuffer* writ
 	asn_long2INTEGER(&request->objectClass.choice.basicObjectClass,
 			ObjectClass__basicObjectClass_domain);
 
-	asn_enc_rval_t rval;
-
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 	            mmsClient_write_out, (void*) writeBuffer);
 
@@ -73,11 +71,11 @@ mmsClient_createMmsGetNameListRequestAssociationSpecific(long invokeId, ByteBuff
 		char* continueAfter)
 {
 	MmsPdu_t* mmsPdu = mmsClient_createConfirmedRequestPdu(invokeId);
+    GetNameListRequest_t* request;
+    asn_enc_rval_t rval;
 
 	mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.present =
 				ConfirmedServiceRequest_PR_getNameList;
-
-	GetNameListRequest_t* request;
 
 	request = &(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.getNameList);
 
@@ -96,8 +94,6 @@ mmsClient_createMmsGetNameListRequestAssociationSpecific(long invokeId, ByteBuff
 
 	asn_long2INTEGER(&request->objectClass.choice.basicObjectClass,
 				ObjectClass__basicObjectClass_namedVariableList);
-
-	asn_enc_rval_t rval;
 
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 				mmsClient_write_out, (void*) writeBuffer);
@@ -129,6 +125,9 @@ mmsClient_parseGetNameListResponse(LinkedList* nameList, ByteBuffer* message, ui
 		if (mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.present == ConfirmedServiceResponse_PR_getNameList) {
 			GetNameListResponse_t* response =
 				&(mmsPdu->choice.confirmedResponsePdu.confirmedServiceResponse.choice.getNameList);
+            int variableCount;
+            int i;
+            LinkedList element;
 
 			if ((response->moreFollows != NULL) && (*(response->moreFollows) != 0))
 				moreFollows = true;
@@ -137,11 +136,9 @@ mmsClient_parseGetNameListResponse(LinkedList* nameList, ByteBuffer* message, ui
 				*nameList = LinkedList_create();
 
 
-			int variableCount = response->listOfIdentifier.list.count;
+			variableCount = response->listOfIdentifier.list.count;
 
-			int i;
-
-			LinkedList element = LinkedList_getLastElement(*nameList);
+			element = LinkedList_getLastElement(*nameList);
 
 			for (i = 0; i < variableCount; i++) {
 				char* variableName =
@@ -169,11 +166,11 @@ mmsClient_createGetNameListRequestDomainSpecific(long invokeId, char* domainName
 		ByteBuffer* writeBuffer, MmsObjectClass objectClass, char* continueAfter)
 {
 	MmsPdu_t* mmsPdu = mmsClient_createConfirmedRequestPdu(invokeId);
+    GetNameListRequest_t* request;
+    asn_enc_rval_t rval;
 
 	mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.present =
 				ConfirmedServiceRequest_PR_getNameList;
-
-	GetNameListRequest_t* request;
 
 	request = &(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.getNameList);
 
@@ -184,8 +181,6 @@ mmsClient_createGetNameListRequestDomainSpecific(long invokeId, char* domainName
 	}
 	else
 		request->continueAfter = NULL;
-
-
 
 	request->objectScope.present = GetNameListRequest__objectScope_PR_domainSpecific;
 	request->objectScope.choice.domainSpecific.buf = domainName;
@@ -198,8 +193,6 @@ mmsClient_createGetNameListRequestDomainSpecific(long invokeId, char* domainName
 	else if (objectClass == MMS_NAMED_VARIABLE_LIST)
 		asn_long2INTEGER(&request->objectClass.choice.basicObjectClass,
 				ObjectClass__basicObjectClass_namedVariableList);
-
-	asn_enc_rval_t rval;
 
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 	            mmsClient_write_out, (void*) writeBuffer);

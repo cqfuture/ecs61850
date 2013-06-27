@@ -95,13 +95,13 @@ getOptionsLength(CotpConnection* self)
     return optionsLength;
 }
 
-static inline int
+static int
 getConnectionResponseLength(CotpConnection* self)
 {
     return 11 + getOptionsLength(self);
 }
 
-static inline CotpIndication
+static CotpIndication
 writeStaticConnectResponseHeader(CotpConnection* self)
 {
     if (ByteStream_writeUint8(self->stream, 6 + getOptionsLength(self)) != 1)
@@ -162,6 +162,10 @@ CotpIndication
 CotpConnection_sendDataMessage(CotpConnection* self, ByteBuffer* payload)
 {
     int fragments = 1;
+    int currentBufPos = 0;
+    int currentLimit;
+    int lastUnit;
+    int i;
 
     int fragmentPayloadSize = CotpConnection_getTpduSize(self) - COTP_DATA_HEADER_SIZE;
 
@@ -172,10 +176,6 @@ CotpConnection_sendDataMessage(CotpConnection* self, ByteBuffer* payload)
             fragments += 1;
         }
     }
-
-    int currentBufPos = 0;
-    int currentLimit;
-    int lastUnit;
 
     while (fragments > 0) {
         if (fragments > 1) {
@@ -193,7 +193,6 @@ CotpConnection_sendDataMessage(CotpConnection* self, ByteBuffer* payload)
         if (writeDataTpduHeader(self, lastUnit) == ERROR)
             return ERROR;
 
-        int i;
         for (i = currentBufPos; i < currentLimit; i++) {
             if (ByteStream_writeUint8(self->stream, payload->buffer[i]) != 1)
                 return ERROR;
@@ -224,10 +223,10 @@ allocateWriteBuffer(CotpConnection* self)
 CotpIndication
 CotpConnection_sendConnectionRequestMessage(CotpConnection* self)
 {
-    allocateWriteBuffer(self);
-
     int len = 22;
+    CotpIndication indication;
 
+    allocateWriteBuffer(self);
     if (writeRfc1006Header(self, len) == ERROR)
         return ERROR;
 
@@ -258,7 +257,7 @@ CotpConnection_sendConnectionRequestMessage(CotpConnection* self)
     self->options.tsap_id_dst = 1;
     self->options.tsap_id_src = 0;
 
-    CotpIndication indication = writeOptions(self);
+    indication = writeOptions(self);
 
     ByteStream_sendBuffer(self->stream);
 
@@ -268,10 +267,8 @@ CotpConnection_sendConnectionRequestMessage(CotpConnection* self)
 CotpIndication
 CotpConnection_sendConnectionResponseMessage(CotpConnection* self)
 {
-    allocateWriteBuffer(self);
-
     int len = getConnectionResponseLength(self);
-
+    allocateWriteBuffer(self);
     if (writeRfc1006Header(self, len) == ERROR)
         return ERROR;
 
@@ -295,6 +292,7 @@ cotp_parse_options(CotpConnection* self, int opt_len)
     int read_bytes = 0;
     uint8_t option_type, option_len, uint8_value;
     uint16_t uint16_value;
+    int requestedTpduSize;
     int i;
 
     while (read_bytes < opt_len) {
@@ -314,7 +312,7 @@ cotp_parse_options(CotpConnection* self, int opt_len)
                 goto cpo_error;
             read_bytes++;
 
-            int requestedTpduSize = (1 << uint8_value);
+            requestedTpduSize = (1 << uint8_value);
             CotpConnection_setTpduSize(self, requestedTpduSize);
 
             break;
@@ -369,7 +367,12 @@ CotpConnection_init(CotpConnection* self, Socket socket,
     self->srcRef = -1;
     self->dstRef = -1;
     self->class = -1;
-    self->options = (CotpOptions ) { .tpdu_size = 0, .tsap_id_src = -1, .tsap_id_dst = -1 };
+    // this method to init an struct is not support in vs2008
+    //self->options = (CotpOptions ) { .tpdu_size = 0, .tsap_id_src = -1, .tsap_id_dst = -1 };
+    self->options.tpdu_size   = 0;
+    self->options.tsap_id_src = -1;
+    self->options.tsap_id_dst = -1;
+
     self->payload = payloadBuffer;
 
     /* default TPDU size is maximum size */
@@ -389,7 +392,7 @@ CotpConnection_destroy(CotpConnection* self)
     ByteStream_destroy(self->stream);
 }
 
-int inline /* in byte */
+int  /* in byte */
 CotpConnection_getTpduSize(CotpConnection* self)
 {
     return (1 << self->options.tpdu_size);
@@ -577,11 +580,12 @@ static int
 addPayloadToBuffer(CotpConnection* self, int rfc1006Length)
 {
     int payloadLength = rfc1006Length - 7;
+    int readLength;
 
     if ((self->payload->size + payloadLength) > self->payload->maxSize)
         return 0;
 
-    int readLength = ByteStream_readOctets(self->stream,
+    readLength = ByteStream_readOctets(self->stream,
             self->payload->buffer + self->payload->size,
             payloadLength);
 

@@ -42,6 +42,12 @@ void
 IsoPresentation_init(IsoPresentation* session);
 
 IsoPresentationIndication
+IsoPresentation_createUserData(IsoPresentation* self, ByteBuffer* writeBuffer, ByteBuffer* payload);
+
+IsoPresentationIndication
+IsoPresentation_parseAcceptMessage(IsoPresentation* self, ByteBuffer* byteBuffer);
+
+IsoPresentationIndication
 IsoPresentation_parseUserData(IsoPresentation* session, ByteBuffer* message);
 
 IsoPresentationIndication

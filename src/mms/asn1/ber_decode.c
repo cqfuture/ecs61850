@@ -24,13 +24,13 @@
 #include "ber_decode.h"
 #include "platform_endian.h"
 
-int
-BerDecoder_decodeLength(uint8_t* buffer, int* length, int bufPos, int maxBufPos)
+int BerDecoder_decodeLength(uint8_t* buffer, int* length, int bufPos, int maxBufPos)
 {
+    uint8_t len1;
     if (bufPos >= maxBufPos)
         return -1;
 
-    uint8_t len1 = buffer[bufPos++];
+    len1 = buffer[bufPos++];
 
     if (len1 & 0x80) {
         int lenLength = len1 & 0x7f;
@@ -39,9 +39,8 @@ BerDecoder_decodeLength(uint8_t* buffer, int* length, int bufPos, int maxBufPos)
             *length = -1;
         }
         else {
-            *length = 0;
-
             int i;
+            *length = 0;
             for (i = 0; i < lenLength; i++) {
                 if (bufPos >= maxBufPos)
                     return -1;
@@ -86,7 +85,7 @@ float
 BerDecoder_decodeFloat(uint8_t* buffer, int bufPos)
 {
     float value;
-    uint8_t* valueBuf = &value;
+    uint8_t* valueBuf = (uint8_t*)&value;
 
     int i;
 
@@ -109,7 +108,7 @@ double
 BerDecoder_decodeDouble(uint8_t* buffer, int bufPos)
 {
     double value;
-    uint8_t* valueBuf = &value;
+    uint8_t* valueBuf = (uint8_t*)&value;
 
     int i;
 

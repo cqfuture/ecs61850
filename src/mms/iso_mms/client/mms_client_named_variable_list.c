@@ -37,11 +37,13 @@ mmsClient_createDeleteNamedVariableListRequest(long invokeId, ByteBuffer* writeB
 		char* domainId, char* listNameId)
 {
 	MmsPdu_t* mmsPdu = mmsClient_createConfirmedRequestPdu(invokeId);
+    DeleteNamedVariableListRequest_t* request;
+    asn_enc_rval_t rval;
 
 	mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.present =
 				ConfirmedServiceRequest_PR_deleteNamedVariableList;
 
-	DeleteNamedVariableListRequest_t* request =
+	request =
 			&(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.deleteNamedVariableList);
 
 	request->listOfVariableListName = calloc(1,
@@ -62,8 +64,6 @@ mmsClient_createDeleteNamedVariableListRequest(long invokeId, ByteBuffer* writeB
 	request->scopeOfDelete = calloc(1, sizeof(INTEGER_t));
 	asn_long2INTEGER(request->scopeOfDelete, DeleteNamedVariableListRequest__scopeOfDelete_specific);
 
-	asn_enc_rval_t rval;
-
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 	            mmsClient_write_out, (void*) writeBuffer);
 
@@ -79,11 +79,13 @@ mmsClient_createDeleteAssociationSpecificNamedVariableListRequest(
 		char* listNameId)
 {
 	MmsPdu_t* mmsPdu = mmsClient_createConfirmedRequestPdu(invokeId);
+    DeleteNamedVariableListRequest_t* request;
+    asn_enc_rval_t rval;
 
 	mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.present =
 				ConfirmedServiceRequest_PR_deleteNamedVariableList;
 
-	DeleteNamedVariableListRequest_t* request =
+	request =
 			&(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.deleteNamedVariableList);
 
 	request->listOfVariableListName = calloc(1,
@@ -102,8 +104,6 @@ mmsClient_createDeleteAssociationSpecificNamedVariableListRequest(
 
 	request->scopeOfDelete = calloc(1, sizeof(INTEGER_t));
 	asn_long2INTEGER(request->scopeOfDelete, DeleteNamedVariableListRequest__scopeOfDelete_specific);
-
-	asn_enc_rval_t rval;
 
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 	            mmsClient_write_out, (void*) writeBuffer);
@@ -157,12 +157,12 @@ mmsClient_createGetNamedVariableListAttributesRequest(uint32_t invokeId, ByteBuf
 		char* domainId, char* listNameId)
 {
 	MmsPdu_t* mmsPdu = mmsClient_createConfirmedRequestPdu(invokeId);
+    GetNamedVariableListAttributesRequest_t* request;
 
 	mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.present =
 				ConfirmedServiceRequest_PR_getNamedVariableListAttributes;
 
-	GetNamedVariableListAttributesRequest_t* request =
-			&(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.getNamedVariableListAttributes);
+	request = &(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.getNamedVariableListAttributes);
 
 	request->present = ObjectName_PR_domainspecific;
 
@@ -183,13 +183,16 @@ mmsClient_createGetNamedVariableListAttributesRequest(uint32_t invokeId, ByteBuf
 static LinkedList
 parseNamedVariableAttributes(GetNamedVariableListAttributesResponse_t* response, bool* deletable)
 {
+    int attributesCount;
+    int i;
+    LinkedList attributes;
+
 	if (deletable != NULL)
 		*deletable = response->mmsDeletable;
 
-	int attributesCount = response->listOfVariable.list.count;
-	int i;
+	attributesCount = response->listOfVariable.list.count;
 
-	LinkedList attributes = LinkedList_create();
+	attributes = LinkedList_create();
 
 	for (i = 0; i < attributesCount; i++) {
 		//TODO add checks
@@ -247,12 +250,15 @@ mmsClient_createDefineNamedVariableListRequest(
 		bool associationSpecific)
 {
 	MmsPdu_t* mmsPdu = mmsClient_createConfirmedRequestPdu(invokeId);
+    int i = 0;
+    LinkedList element;
+    DefineNamedVariableListRequest_t* request;
+    int listSize;
 
 	mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.present =
 				ConfirmedServiceRequest_PR_defineNamedVariableList;
 
-	DefineNamedVariableListRequest_t* request =
-		&(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.defineNamedVariableList);
+	request = &(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.defineNamedVariableList);
 
 	if (associationSpecific) {
 		request->variableListName.present = ObjectName_PR_aaspecific;
@@ -270,15 +276,14 @@ mmsClient_createDefineNamedVariableListRequest(
 		request->variableListName.choice.domainspecific.itemId.buf = copyString(listNameId);
 	}
 
-	int listSize = LinkedList_size(listOfVariables);
+	listSize = LinkedList_size(listOfVariables);
 
 	request->listOfVariable.list.count = listSize;
 	request->listOfVariable.list.size = listSize;
 
 	request->listOfVariable.list.array = calloc(listSize, sizeof(void*));
 
-	int i = 0;
-	LinkedList element = LinkedList_getNext(listOfVariables);
+	element = LinkedList_getNext(listOfVariables);
 	while (i < listSize) {
 
 		MmsVariableSpecification* variableSpec = (MmsVariableSpecification*) element->data;
@@ -327,6 +332,7 @@ mmsClient_createDefineNamedVariableListRequest(
 			if (variableSpec->componentName != NULL) {
 
 				AlternateAccess_t* componentAccess = calloc(1, sizeof(AlternateAccess_t));
+                Identifier_t* componentIdentifier;
 
 				componentAccess->list.count = 1;
 				componentAccess->list.array = calloc(1, sizeof(struct AlternateAccess__Member*));
@@ -340,7 +346,7 @@ mmsClient_createDefineNamedVariableListRequest(
 				componentAccess->list.array[0]->choice.unnamed->choice.selectAccess.present =
 						AlternateAccessSelection__selectAccess_PR_component;
 
-				Identifier_t* componentIdentifier =
+				componentIdentifier =
 						&(componentAccess->list.array[0]->choice.unnamed->choice.selectAccess.choice.component);
 
 				componentIdentifier->size = strlen(variableSpec->componentName);

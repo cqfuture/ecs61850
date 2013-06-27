@@ -76,12 +76,11 @@ int
 mmsClient_createInitiateRequest(MmsConnection self, ByteBuffer* message)
 {
 	MmsPdu_t* mmsPdu = calloc(1, sizeof(MmsPdu_t));
+    asn_enc_rval_t rval;
 
 	mmsPdu->present = MmsPdu_PR_initiateRequestPdu;
 
 	mmsPdu->choice.initiateRequestPdu = createInitiateRequestPdu(self);
-
-	asn_enc_rval_t rval;
 
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 	            mmsClient_write_out, (void*) message);
@@ -105,6 +104,7 @@ mmsClient_parseInitiateResponse(MmsConnection self)
 	MmsValue* value = NULL;
 
 	asn_dec_rval_t rval;
+    long maxServerOutstandingCalled;
 
 	rval = ber_decode(NULL, &asn_DEF_MmsPdu,
 			(void**) &mmsPdu, ByteBuffer_getBuffer(self->lastResponse),
@@ -114,6 +114,7 @@ mmsClient_parseInitiateResponse(MmsConnection self)
 
 	if (mmsPdu->present == MmsPdu_PR_initiateResponsePdu) {
 		InitiateResponsePdu_t* initiateResponse = &(mmsPdu->choice.initiateResponsePdu);
+        long maxServerOutstandingCalling;
 
 		if (initiateResponse->localDetailCalled != NULL) {
 			long maxPduSize;
@@ -135,8 +136,6 @@ mmsClient_parseInitiateResponse(MmsConnection self)
 			self->parameters.dataStructureNestingLevel = nestingLevel;
 		}
 
-		long maxServerOutstandingCalled;
-
 //		asn_INTEGER2long(&initiateResponse->negotiatedMaxServOutstandingCalled,
 //				&maxServerOutstandingCalled);
 
@@ -144,7 +143,6 @@ mmsClient_parseInitiateResponse(MmsConnection self)
 
 		self->parameters.maxServOutstandingCalled = maxServerOutstandingCalled;
 
-		long maxServerOutstandingCalling;
 //		asn_INTEGER2long(&initiateResponse->negotiatedMaxServOutstandingCalling,
 //				&maxServerOutstandingCalling);
 

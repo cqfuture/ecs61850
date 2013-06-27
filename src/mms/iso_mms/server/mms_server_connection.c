@@ -81,6 +81,7 @@ static uint8_t servicesSupported[] =
 static void
 writeMmsRejectPdu(int* invokeId, int reason, ByteBuffer* response) {
 	MmsPdu_t* mmsPdu = calloc(1, sizeof(MmsPdu_t));
+    asn_enc_rval_t rval;
 
 	mmsPdu->present = MmsPdu_PR_rejectPDU;
 
@@ -104,8 +105,6 @@ writeMmsRejectPdu(int* invokeId, int reason, ByteBuffer* response) {
 		mmsPdu->choice.rejectPDU.rejectReason.choice.confirmedResponsePDU =
 			RejectPDU__rejectReason__confirmedRequestPDU_other;
 	}
-
-	asn_enc_rval_t rval;
 
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 			mmsServer_write_out, (void*) response);
@@ -165,12 +164,11 @@ static int
 createInitiateResponse(MmsServerConnection* self, ByteBuffer* writeBuffer)
 {
 	MmsPdu_t* mmsPdu = calloc(1, sizeof(MmsPdu_t));
+    asn_enc_rval_t rval;
 
 	mmsPdu->present = MmsPdu_PR_initiateResponsePdu;
 
 	mmsPdu->choice.initiateResponsePdu = createInitiateResponsePdu(self);
-
-	asn_enc_rval_t rval;
 
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 	            mmsServer_write_out, (void*) writeBuffer);
@@ -235,10 +233,11 @@ handleConfirmedRequestPdu(
 		ByteBuffer* response)
 {
 	long invokeIdLong;
+    int32_t invokeId;
 
 	asn_INTEGER2long((INTEGER_t*) &(request->invokeID), &invokeIdLong);
 
-	int32_t invokeId = (int32_t) invokeIdLong;
+	invokeId = (int32_t) invokeIdLong;
 
 	if (DEBUG) printf("invokeId: %i\n", invokeId);
 

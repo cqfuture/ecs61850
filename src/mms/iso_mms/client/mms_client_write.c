@@ -101,11 +101,12 @@ mmsClient_createWriteRequest(long invokeId, char* domainId, char* itemId, MmsVal
 		ByteBuffer* writeBuffer)
 {
 	MmsPdu_t* mmsPdu = mmsClient_createConfirmedRequestPdu(invokeId);
+    asn_enc_rval_t rval;
+    WriteRequest_t* request;
 
 	mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.present =
 			ConfirmedServiceRequest_PR_write;
-	WriteRequest_t* request =
-			&(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.write);
+	request = &(mmsPdu->choice.confirmedRequestPdu.confirmedServiceRequest.choice.write);
 
 	/* Create list of variable specifications */
 	request->variableAccessSpecification.present = VariableAccessSpecification_PR_listOfVariable;
@@ -121,8 +122,6 @@ mmsClient_createWriteRequest(long invokeId, char* domainId, char* itemId, MmsVal
 	request->listOfData.list.size = 1;
 	request->listOfData.list.array = calloc(1, sizeof(struct Data*));
 	request->listOfData.list.array[0] = mmsMsg_createBasicDataElement(value);
-
-	asn_enc_rval_t rval;
 
 	rval = der_encode(&asn_DEF_MmsPdu, mmsPdu,
 				mmsClient_write_out, (void*) writeBuffer);

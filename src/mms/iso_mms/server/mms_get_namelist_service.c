@@ -110,18 +110,20 @@ getNameListDomainSpecific(MmsServerConnection* connection, char* domainName) {
 	MmsDomain* domain = MmsDevice_getDomain(device, domainName);
 
 	if (domain != NULL) {
-		nameList = LinkedList_create();
-		MmsTypeSpecification** variables = domain->namedVariables;
+		MmsTypeSpecification** variables;
+        int i;
+        LinkedList element;
+        nameList = LinkedList_create();
+		variables = domain->namedVariables;
 
-		int i;
-
-		LinkedList element = nameList;
+		element = nameList;
 
 		for (i = 0; i < domain->namedVariablesCount; i++) {
 			// LinkedList_add(nameList, copyString(variables[i]->name));
-			element = LinkedList_insertAfter(element, copyString(variables[i]->name));
+			char* prefix;
+            element = LinkedList_insertAfter(element, copyString(variables[i]->name));
 
-			char* prefix = variables[i]->name;
+			prefix = variables[i]->name;
 
 			//addSubNamedVaribleNamesToList(nameList, prefix, variables[i]);
 			element = addSubNamedVaribleNamesToList(element, prefix, variables[i]);
@@ -136,8 +138,9 @@ getNameListDomainSpecific(MmsServerConnection* connection, char* domainName) {
 static LinkedList
 createStringsFromNamedVariableList(LinkedList nameList, LinkedList variableLists)
 {
+    LinkedList variableListsElement;
 	nameList = LinkedList_create();
-	LinkedList variableListsElement = LinkedList_getNext(variableLists);
+	variableListsElement = LinkedList_getNext(variableLists);
 	while (variableListsElement != NULL ) {
 		MmsNamedVariableList variableList =
 				(MmsNamedVariableList) variableListsElement->data;
@@ -190,6 +193,20 @@ createNameListResponse(
         char* continueAfter)
 {
     LinkedList startElement = NULL;
+    int nameCount;
+    int mmsPduLength;
+    int maxPduSize;
+    bool moreFollows;
+    LinkedList element;
+    uint32_t identifierListSize;
+    uint32_t listOfIdentifierSize;
+    uint32_t getNameListSize;
+    uint32_t confirmedServiceResponseSize;
+    uint32_t invokeIdSize;
+    uint32_t confirmedResponsePDUSize;
+    uint8_t* buffer;
+    int bufPos;
+    int i = 0;
 
     if (continueAfter != NULL) {
         LinkedList element = nameList;
@@ -211,13 +228,13 @@ createNameListResponse(
     if (startElement == NULL)
         startElement = nameList;
 
-    int nameCount = 0;
-    int mmsPduLength = 25; /* estimated overhead size of PDU encoding */
-    int maxPduSize = connection->maxPduSize;
+    nameCount = 0;
+    mmsPduLength = 25; /* estimated overhead size of PDU encoding */
+    maxPduSize = connection->maxPduSize;
 
-    bool moreFollows = false;
+    moreFollows = false;
 
-    LinkedList element = startElement;
+    element = startElement;
 
     while ((element = LinkedList_getNext(element)) != NULL) {
         int elementLength;
@@ -235,17 +252,17 @@ createNameListResponse(
 
     }
 
-    uint32_t identifierListSize = mmsPduLength - 25;
+    identifierListSize = mmsPduLength - 25;
 
-    uint32_t listOfIdentifierSize = 1 + BerEncoder_determineLengthSize(identifierListSize) + identifierListSize;
+    listOfIdentifierSize = 1 + BerEncoder_determineLengthSize(identifierListSize) + identifierListSize;
 
-    uint32_t getNameListSize = listOfIdentifierSize + 3;
+    getNameListSize = listOfIdentifierSize + 3;
 
-    uint32_t confirmedServiceResponseSize = 1 + BerEncoder_determineLengthSize(getNameListSize) + getNameListSize;
+    confirmedServiceResponseSize = 1 + BerEncoder_determineLengthSize(getNameListSize) + getNameListSize;
 
-    uint32_t invokeIdSize = BerEncoder_UInt32determineEncodedSize((uint32_t) invokeId) + 2;
+    invokeIdSize = BerEncoder_UInt32determineEncodedSize((uint32_t) invokeId) + 2;
 
-    uint32_t confirmedResponsePDUSize = confirmedServiceResponseSize + invokeIdSize;
+    confirmedResponsePDUSize = confirmedServiceResponseSize + invokeIdSize;
 
     if (DEBUG) printf("maxPduLength: %i\n", maxPduSize);
 
@@ -255,8 +272,8 @@ createNameListResponse(
     /* encode response */
     element = startElement;
 
-    uint8_t* buffer = response->buffer;
-    int bufPos = 0;
+    buffer = response->buffer;
+    bufPos = 0;
 
     bufPos = BerEncoder_encodeTL(0xa1, confirmedResponsePDUSize, buffer, bufPos);
 
@@ -266,8 +283,7 @@ createNameListResponse(
     bufPos = BerEncoder_encodeTL(0xa1, getNameListSize, buffer, bufPos);
     bufPos = BerEncoder_encodeTL(0xa0, identifierListSize, buffer, bufPos);
 
-    int i = 0;
-
+    i = 0;
     while ((element = LinkedList_getNext(element)) != NULL) {
         bufPos = BerEncoder_encodeStringWithTag(0x1a, (char*) element->data, buffer, bufPos);
 
@@ -290,10 +306,11 @@ mmsServer_handleGetNameListRequest(
 		ByteBuffer* response)
 {
 	long objectClass;
+    char* continueAfter;
+    long objectScope;
+    char* domainSpecificName;
 
 	asn_INTEGER2long(&getNameList->objectClass.choice.basicObjectClass, &objectClass);
-
-	long objectScope;
 
 	switch (getNameList->objectScope.present) {
 	case GetNameListRequest__objectScope_PR_NOTHING:
@@ -313,7 +330,7 @@ mmsServer_handleGetNameListRequest(
 		break;
 	}
 
-	char* continueAfter = NULL;
+	continueAfter = NULL;
 
 	if (getNameList->continueAfter != NULL) {
 		int identifierLength = getNameList->continueAfter->size;
@@ -323,7 +340,7 @@ mmsServer_handleGetNameListRequest(
 		continueAfter[identifierLength] = 0;
 	}
 
-	char* domainSpecificName = NULL;
+	domainSpecificName = NULL;
 
 	if (objectScope == 2) {
 
