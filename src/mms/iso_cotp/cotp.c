@@ -48,9 +48,12 @@ static CotpIndication
 writeOptions(CotpConnection* self)
 {
     if (self->options.tsap_id_dst != -1) {
-        if (ByteStream_writeUint8(self->stream, 0xc2) == -1)
+        // modify by sabin
+        // if (ByteStream_writeUint8(self->stream, 0xc2) == -1)
+        //    return ERROR;
+        if (ByteStream_writeUint8(self->stream, 0xc1) == -1)
             return ERROR;
-        if (ByteStream_writeUint8(self->stream, 2) == -1)
+        if (ByteStream_writeUint8(self->stream, 0x02) == -1)
             return ERROR;
         if (ByteStream_writeUint8(self->stream, (uint8_t) (self->options.tsap_id_dst / 0x100)) == -1)
             return ERROR;
@@ -59,9 +62,12 @@ writeOptions(CotpConnection* self)
     }
 
     if (self->options.tsap_id_src != -1) {
-        if (ByteStream_writeUint8(self->stream, 0xc1) == -1)
+//         if (ByteStream_writeUint8(self->stream, 0xc1) == -1)
+//             return ERROR;
+         if (ByteStream_writeUint8(self->stream, 0xc2) == -1)
             return ERROR;
-        if (ByteStream_writeUint8(self->stream, 2) == -1)
+
+        if (ByteStream_writeUint8(self->stream, 0x02) == -1)
             return ERROR;
         if (ByteStream_writeUint8(self->stream, (uint8_t) (self->options.tsap_id_src / 0x100)) == -1)
             return ERROR;
@@ -73,9 +79,11 @@ writeOptions(CotpConnection* self)
 
         if (ByteStream_writeUint8(self->stream, 0xc0) == -1)
             return ERROR;
-        if (ByteStream_writeUint8(self->stream, 1) == -1)
+        if (ByteStream_writeUint8(self->stream, 0x01) == -1)
             return ERROR;
-        if (ByteStream_writeUint8(self->stream, self->options.tpdu_size) == -1)
+//         if (ByteStream_writeUint8(self->stream, self->options.tpdu_size) == -1)
+//             return ERROR;
+        if (ByteStream_writeUint8(self->stream, 0x0a) == -1)
             return ERROR;
     }
 
@@ -247,15 +255,20 @@ CotpConnection_sendConnectionRequestMessage(CotpConnection* self)
     /* SRC REF */
     if (ByteStream_writeUint8(self->stream, 0x00) != 1)
         return ERROR;
-    if (ByteStream_writeUint8(self->stream, 0x01) != 1)
+    if (ByteStream_writeUint8(self->stream, 0x04) != 1)
         return ERROR;
+
+    // modify by sabin
+    // if (ByteStream_writeUint8(self->stream, 0x01) != 1)
+    //    return ERROR;
 
     /* Class */
     if (ByteStream_writeUint8(self->stream, 0x00) != 1)
         return ERROR;
 
     self->options.tsap_id_dst = 1;
-    self->options.tsap_id_src = 0;
+    //self->options.tsap_id_src = 0;
+    self->options.tsap_id_src = 1;
 
     indication = writeOptions(self);
 

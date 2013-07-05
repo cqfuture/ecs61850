@@ -6,26 +6,16 @@
 int main(int argc, char** argv) {
 
 	char* hostname;
-	int tcpPort = 102;
-
-	if (argc > 1)
-		hostname = argv[1];
-	else
-		hostname = "localhost";
-
-	if (argc > 2)
-		tcpPort = atoi(argv[2]);
-
 	MmsConnection con = MmsConnection_create();
-
 	MmsIndication indication;
-
 	MmsClientError mmsError;
+    LinkedList nameList;
+    LinkedList element;
 
 	/* Set maximum MMS PDU size (local detail) to 2000 byte */
 	MmsConnection_setLocalDetail(con, 2000);
 
-	indication = MmsConnection_connect(con, &mmsError, hostname, tcpPort);
+	indication = MmsConnection_connect(con, &mmsError, "192.168.27.152", 102);
 
 	if (indication != MMS_OK) {
 		printf("MMS connect failed!\n");
@@ -35,16 +25,18 @@ int main(int argc, char** argv) {
 		printf("MMS connected.\n\n");
 
 	printf("Domains present on server:\n--------------------------\n");
-	LinkedList nameList = MmsConnection_getDomainNames(con, &mmsError);
+	nameList = MmsConnection_getDomainNames(con, &mmsError);
 	LinkedList_printStringList(nameList);
 	printf("\n");
 
-	LinkedList element = nameList;
+	element = nameList;
 
 	while ((element = LinkedList_getNext(element)) != NULL) {
-		printf("\nNamed variables in domain: %s\n-------------------------------------------------\n", (char*) element->data);
+        LinkedList variableList;
+        LinkedList dataSetList;
 
-		LinkedList variableList = MmsConnection_getDomainVariableNames(con, &mmsError, (char*) element->data);
+        printf("\nNamed variables in domain: %s\n-------------------------------------------------\n", (char*) element->data);
+		variableList = MmsConnection_getDomainVariableNames(con, &mmsError, (char*) element->data);
 
 		LinkedList_printStringList(variableList);
 
@@ -52,7 +44,7 @@ int main(int argc, char** argv) {
 
 		printf("\nNamed variable lists (data sets) in domain: %s\n", (char*) element->data);
 
-		LinkedList dataSetList = MmsConnection_getDomainVariableListNames(con, &mmsError, (char*) element->data);
+		dataSetList = MmsConnection_getDomainVariableListNames(con, &mmsError, (char*) element->data);
 
 		LinkedList_printStringList(dataSetList);
 
